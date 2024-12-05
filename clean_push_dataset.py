@@ -2,12 +2,12 @@ import re
 import logging
 from istatapi import discovery, retrieval
 import pandas as pd
-from sqlalchemy import create_engine
+import sqlitecloud
 from config import API_KEY
 
 # Constants
 DATASET_ID = "150_915"
-BATCH_SIZE = 1000  # Number of rows per batch for database insertion
+BATCH_SIZE = 1000  # Rows per batch for database insertion
 
 # Configure logging
 logging.basicConfig(
@@ -66,7 +66,7 @@ def prepare_column_definitions(data):
         column_definitions.append(f"{column_name} {column_type}")
     return column_definitions
 
-def batch_insert_data(engine, data, table_name, batch_size=1000):
+def batch_insert_data(conn, data, table_name, batch_size=1000):
     """Insert data into the database in batches."""
     total_rows = len(data)
     logging.info(f"Inserting {total_rows} rows into table '{table_name}' in batches of {batch_size} rows...")
@@ -77,7 +77,7 @@ def batch_insert_data(engine, data, table_name, batch_size=1000):
             # Use method='multi' for faster multi-row insertion
             batch.to_sql(
                 table_name,
-                engine,
+                conn,
                 if_exists='append',
                 index=False,
                 method='multi'
@@ -86,6 +86,7 @@ def batch_insert_data(engine, data, table_name, batch_size=1000):
         except Exception as e:
             logging.error(f"Failed to insert rows {start} to {end}: {e}")
             raise
+
 
 def main():
     logging.info(f"Starting processing for dataset ID: {DATASET_ID}")
@@ -122,24 +123,33 @@ def main():
         # Prepare column definitions for SQL table creation
         column_definitions = prepare_column_definitions(data)
 
-        # Connect to the SQLite Cloud database using SQLAlchemy
+        # Connect to the SQLite Cloud database
         logging.info("Connecting to the SQLite Cloud database...")
-        engine = create_engine(f"sqlite+pysqlitecloud://cfqv0pfvhz.sqlite.cloud:8860/IOWID?apikey={API_KEY}")
+        conn = sqlitecloud.connect(f"sqlitecloud://cfqv0pfvhz.sqlite.cloud:8860/IOWID?apikey={API_KEY}")
+        conn.execute("PRAGMA synchronous = OFF;")  # Performance optimization
+        conn.execute("PRAGMA journal_mode = WAL;")
 
         # Create the table
         table_name = dataset_description
         logging.info(f"Creating table '{table_name}' if it doesn't exist...")
-        with engine.connect() as conn:
-            create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(column_definitions)})"
-            conn.execute(create_table_query)
+        create_table_query = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(column_definitions)})"
+        conn.execute(create_table_query)
 
         # Insert the data into the table in batches
-        batch_insert_data(engine, data, table_name, BATCH_SIZE)
+        batch_insert_data(conn, data, table_name)
+
+        # Commit the transaction
+        logging.info("Committing the transaction...")
+        conn.commit()
 
     except Exception as e:
         logging.error(f"An error occurred during processing: {e}")
     finally:
-        logging.info("Processing complete.")
+        # Close the connection
+        logging.info("Closing the database connection...")
+        conn.close()
+
+    logging.info(f"Data processing and insertion into table '{table_name}' completed successfully.")
 
 if __name__ == "__main__":
     main()
