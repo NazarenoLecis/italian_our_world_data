@@ -7,7 +7,6 @@ from config import API_KEY
 
 # Constants
 DATASET_ID = "150_915"
-BATCH_SIZE = 1000  # Rows per batch for database insertion
 
 # Configure logging
 logging.basicConfig(
