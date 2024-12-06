@@ -13,77 +13,105 @@ def fetch_dataset(dataset_id):
     """
     url = f"https://serviziweb2.inps.it/odapi/package_show?id={dataset_id}"
     try:
+        print(f"Fetching dataset metadata for ID {dataset_id}...")
         response = requests.get(url, timeout=15)
         response.raise_for_status()
+        print("Metadata fetched successfully!")
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"Error fetching dataset {dataset_id}: {e}")
         return None
 
-def download_resource(resource_url, output_path):
+def download_resource(dataset_id, resource_url):
     """
     Download a resource file from a given URL.
 
     Parameters:
+    - dataset_id: The ID of the dataset.
     - resource_url: The URL of the resource to download.
-    - output_path: The local file path to save the downloaded resource.
+
+    Returns:
+    - Path to the downloaded file.
     """
+    output_path = f"dataset_{dataset_id}.csv"
     try:
+        print(f"Downloading resource from {resource_url} for dataset ID {dataset_id}...")
         response = requests.get(resource_url, timeout=15)
         response.raise_for_status()
         with open(output_path, 'wb') as file:
             file.write(response.content)
         print(f"Resource downloaded successfully and saved to '{output_path}'.")
+        return output_path
     except requests.exceptions.RequestException as e:
         print(f"Error downloading resource from {resource_url}: {e}")
+        return None
 
-def load_and_save_as_excel(file_path, output_file="cleaned_dataset_54.xlsx"):
+def load_and_save_as_excel(dataset_id, file_path):
     """
     Load the dataset and save it as an Excel file.
 
     Parameters:
+    - dataset_id: The ID of the dataset.
     - file_path: Path to the input dataset file.
-    - output_file: Path to save the Excel file (default: cleaned_dataset_{id}.xlsx).
+
+    Returns:
+    - Path to the cleaned Excel file.
     """
+    output_file = f"cleaned_dataset_{dataset_id}.xlsx"
     try:
-        # Load the dataset using the correct delimiter
+        print(f"Loading dataset from {file_path}...")
         data = pd.read_csv(file_path, delimiter=';', encoding='utf-8', on_bad_lines='skip')
 
-        # Clean the numeric columns by removing spaces and converting them
+        print("Cleaning data...")
         for column in data.columns:
-            # Remove spaces from numeric fields and handle errors gracefully
             data[column] = (
                 data[column]
-                .astype(str)  # Ensure all values are strings for cleaning
-                .str.replace(" ", "", regex=False)  # Remove spaces
-                .str.replace(",", ".", regex=False)  # Replace commas with dots for decimal conversion
+                .astype(str)
+                .str.replace(" ", "", regex=False)
+                .str.replace(",", ".", regex=False)
             )
-            # Convert cleaned strings to numeric where possible
             data[column] = pd.to_numeric(data[column], errors='ignore')
 
-        # Save the cleaned dataset to an Excel file
-        data.to_excel(output_file, index=False, sheet_name="Dataset_54")
-        print(f"Cleaned dataset successfully saved to Excel file: '{output_file}'.")
-
+        print(f"Saving cleaned data to Excel file: {output_file}...")
+        data.to_excel(output_file, index=False, sheet_name=f"Dataset_{dataset_id}")
+        print(f"Cleaned dataset successfully saved to '{output_file}'.")
+        return output_file
     except Exception as e:
         print(f"An error occurred: {e}")
+        return None
 
-if __name__ == "__main__":
-    # Step 1: Fetch dataset metadata
-    dataset_id = "54"
+def process_dataset(dataset_id):
+    """
+    Fetch, download, clean, and save a dataset as an Excel file.
+
+    Parameters:
+    - dataset_id: The ID of the dataset to process.
+    """
     dataset_info = fetch_dataset(dataset_id)
     
     if dataset_info:
-        # Step 2: Extract resources and download
+        print("Analyzing dataset resources...")
         resources = dataset_info.get('result', {}).get('resources', [])
+        if not resources:
+            print(f"No resources found for dataset {dataset_id}.")
+            return
         for resource in resources:
             resource_url = resource.get('url')
             format = resource.get('format')
+            print(f"Found resource: {resource_url} (Format: {format})")
             if resource_url and format and format.lower() == "csv":
                 # Step 3: Download the resource file
-                downloaded_file = f"dataset_{dataset_id}.csv"
-                download_resource(resource_url, downloaded_file)
+                downloaded_file = download_resource(dataset_id, resource_url)
 
                 # Step 4: Save the dataset directly as an Excel file
-                cleaned_file = f"cleaned_dataset_{dataset_id}.xlsx"
-                load_and_save_as_excel(downloaded_file, output_file=cleaned_file)
+                if downloaded_file:
+                    cleaned_file = load_and_save_as_excel(dataset_id, downloaded_file)
+                    if cleaned_file:
+                        print(f"Dataset {dataset_id} processed successfully. Cleaned file: {cleaned_file}")
+                    break
+    else:
+        print(f"Dataset {dataset_id} could not be fetched.")
+
+if __name__ == "__main__":
+    dataset_id = "82"
+    process_dataset(dataset_id)
