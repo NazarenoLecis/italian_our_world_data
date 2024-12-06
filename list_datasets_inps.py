@@ -25,53 +25,54 @@ def fetch_bulk_download(limit=50):
         print(f"Error fetching bulk download: {e}")
         return None
 
-def fetch_dataset_status(dataset_id):
+def fetch_dataset_metadata(dataset_id):
     """
-    Fetch the status of a specific dataset.
+    Fetch metadata for a specific dataset, including status and last modification date.
 
     Parameters:
     - dataset_id: The ID of the dataset to check.
 
     Returns:
-    - The status of the dataset (e.g., active, dismissed).
+    - A dictionary with dataset ID, status, and last modification date.
     """
     url = f"https://serviziweb2.inps.it/odapi/package_show?id={dataset_id}"
     try:
-        print(f"Fetching status for dataset ID {dataset_id}...")
+        print(f"Fetching metadata for dataset ID {dataset_id}...")
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        dataset_info = response.json()
-        result = dataset_info.get("result", {})
-        state = result.get("state", "unknown")
-        print(f"Status for dataset ID {dataset_id}: {state}")
-        return {"ID": dataset_id, "Status": state}
+        dataset_info = response.json().get("result", {})
+        return {
+            "ID": dataset_id,
+            "Status": dataset_info.get("state", "unknown"),
+            "Last Modified": dataset_info.get("metadata_modified", "unknown")
+        }
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching status for dataset ID {dataset_id}: {e}")
-        return {"ID": dataset_id, "Status": "error"}
+        print(f"Error fetching metadata for dataset ID {dataset_id}: {e}")
+        return {"ID": dataset_id, "Status": "error", "Last Modified": "unknown"}
 
-def fetch_all_statuses(dataset_ids):
+def fetch_all_metadata(dataset_ids):
     """
-    Fetch statuses for all datasets using threading for parallel requests.
+    Fetch metadata for all datasets using threading for parallel requests.
 
     Parameters:
     - dataset_ids: List of dataset IDs.
 
     Returns:
-    - A list of dictionaries containing dataset IDs and statuses.
+    - A list of dictionaries containing metadata for all datasets.
     """
-    print(f"Starting parallel status checks for {len(dataset_ids)} datasets...")
+    print(f"Starting parallel metadata fetch for {len(dataset_ids)} datasets...")
     with ThreadPoolExecutor(max_workers=10) as executor:
-        results = list(executor.map(fetch_dataset_status, dataset_ids))
-    print("All dataset statuses successfully fetched!")
+        results = list(executor.map(fetch_dataset_metadata, dataset_ids))
+    print("All dataset metadata successfully fetched!")
     return results
 
-def parse_and_save_rdf_to_csv(rdf_data, output_file="datasets_with_status.csv"):
+def parse_and_save_rdf_to_csv(rdf_data, output_file="datasets_with_metadata.csv"):
     """
-    Parse RDF-like data, fetch dataset statuses, and save to a CSV file.
+    Parse RDF-like data, fetch dataset metadata, and save to a CSV file.
 
     Parameters:
     - rdf_data: String containing RDF data.
-    - output_file: Name of the CSV file to save (default: datasets_with_status.csv).
+    - output_file: Name of the CSV file to save (default: datasets_with_metadata.csv).
     """
     print("Parsing metadata from RDF data...")
     entries = rdf_data.split("\n\n")
@@ -92,25 +93,27 @@ def parse_and_save_rdf_to_csv(rdf_data, output_file="datasets_with_status.csv"):
                 "Description": unescape(description.group(1))
             })
 
-    print(f"Parsed metadata for {len(datasets)} datasets. Fetching their statuses...")
+    print(f"Parsed metadata for {len(datasets)} datasets. Fetching detailed metadata...")
     
     dataset_ids = [dataset["ID"] for dataset in datasets]
-    statuses = fetch_all_statuses(dataset_ids)
+    metadata = fetch_all_metadata(dataset_ids)
 
-    # Merge statuses with dataset information
-    print("Merging statuses with dataset metadata...")
-    status_dict = {status["ID"]: status["Status"] for status in statuses}
+    # Merge metadata with dataset information
+    print("Merging detailed metadata with dataset information...")
+    metadata_dict = {item["ID"]: item for item in metadata}
     for dataset in datasets:
-        dataset["Status"] = status_dict.get(dataset["ID"], "unknown")
+        dataset_metadata = metadata_dict.get(dataset["ID"], {})
+        dataset["Status"] = dataset_metadata.get("Status", "unknown")
+        dataset["Last Modified"] = dataset_metadata.get("Last Modified", "unknown")
 
-    print(f"Saving all dataset information and statuses to '{output_file}'...")
+    print(f"Saving all dataset information to '{output_file}'...")
     df = pd.DataFrame(datasets)
     df.to_csv(output_file, index=False)
-    print(f"Dataset information and statuses successfully saved to '{output_file}'.")
+    print(f"Dataset information successfully saved to '{output_file}'.")
 
 if __name__ == "__main__":
     print("Starting the dataset processing workflow...")
     rdf_data = fetch_bulk_download(limit=50)
     if rdf_data:
-        parse_and_save_rdf_to_csv(rdf_data, output_file="datasets_with_status.csv")
+        parse_and_save_rdf_to_csv(rdf_data, output_file="datasets_with_metadata.csv")
     print("Workflow completed!")
