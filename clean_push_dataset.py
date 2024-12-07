@@ -5,9 +5,6 @@ import pandas as pd
 import sqlitecloud
 from config import API_KEY
 
-# Constants
-DATASET_ID = "150_915"
-
 # Configure logging
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -42,7 +39,7 @@ def merge_dimension_descriptions(data, ds, dimensions_info):
             values_df['values_ids'] = values_df['values_ids'].astype(str)
             data = data.merge(values_df, how='left', left_on=dimension, right_on='values_ids')
             data.drop(columns=[dimension, 'values_ids'], inplace=True)
-            data.rename(columns={'values_description': f'{dimension}_description'}, inplace=True)
+            data.rename(columns={'values_description': f'{dimension}'}, inplace=True)
         return data
     except Exception as e:
         logging.error(f"Error merging dimension descriptions: {e}")
@@ -86,17 +83,16 @@ def batch_insert_data(conn, data, table_name, batch_size=1000):
             logging.error(f"Failed to insert rows {start} to {end}: {e}")
             raise
 
-
-def main():
-    logging.info(f"Starting processing for dataset ID: {DATASET_ID}")
+def main(dataset_id):
+    logging.info(f"Starting processing for dataset ID: {dataset_id}")
 
     try:
         # Retrieve dataset description
-        dataset_description = get_dataset_description(DATASET_ID)
+        dataset_description = get_dataset_description(dataset_id)
 
         # Initialize the dataset
-        logging.info(f"Initializing dataset with ID: {DATASET_ID}")
-        ds = discovery.DataSet(dataflow_identifier=DATASET_ID)
+        logging.info(f"Initializing dataset with ID: {dataset_id}")
+        ds = discovery.DataSet(dataflow_identifier=dataset_id)
 
         # Retrieve dimensions information
         logging.info("Retrieving dimensions information...")
@@ -105,6 +101,11 @@ def main():
         # Retrieve the data
         logging.info("Retrieving dataset...")
         data = retrieval.get_data(ds)
+
+        # Check if 'itter107' exists and rename it to 'territorio'
+        if 'itter107' in data.columns:
+            logging.info("Column 'itter107' found. Renaming it to 'territorio'...")
+            data.rename(columns={'itter107': 'territorio'}, inplace=True)
 
         # Merge data with dimension descriptions
         logging.info("Merging data with dimension descriptions...")
@@ -151,4 +152,4 @@ def main():
     logging.info(f"Data processing and insertion into table '{table_name}' completed successfully.")
 
 if __name__ == "__main__":
-    main()
+    main('150_915')
