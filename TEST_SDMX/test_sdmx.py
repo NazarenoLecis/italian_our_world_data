@@ -38,7 +38,7 @@ def fetch_istat_data(dataflow_id, key='', params=None):
         # Log available dimensions for the dataflow
         logging.info("Available dimensions in the dataflow:")
         for dim in structure.dimensions:
-            logging.info(f"Dimension: {dim.id}, Name: {dim.name}")
+            logging.info(f"Dimension: {dim.id}")  # Using `dim.id` instead of `dim.name`
 
         # Step 3: Retrieve the actual data for the dataflow
         logging.info(f"Fetching data for dataflow ID: {dataflow_id} with key: '{key}'...")
@@ -62,7 +62,7 @@ if __name__ == "__main__":
     """
 
     # Step 5: Specify the dataflow ID to fetch data
-    # Replace  with a valid ISTAT dataflow ID from the list of available dataflows
+    # Replace with a valid ISTAT dataflow ID from the list of available dataflows
     dataflow_id = '150_915'  # Example: Gross Domestic Product and main components
 
     # Step 6: (Optional) Specify filtering parameters for the data query
