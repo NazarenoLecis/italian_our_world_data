@@ -8,8 +8,35 @@ Full documentation: [docs/API.md](docs/API.md)
 
 ## Installation
 
+Install the published release from PyPI:
+
+```bash
+python3 -m pip install italian-our-world-data
+```
+
+The PyPI command is available after the first release has been published.
+Until then, or to install the current `main` branch directly from GitHub:
+
+```bash
+python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git"
+```
+
+Install a tagged GitHub release for reproducible use:
+
+```bash
+python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git@v0.1.0"
+```
+
+For contributors working from a clone:
+
 ```bash
 python3 -m pip install -e .
+```
+
+In Python, the import name uses underscores:
+
+```python
+import italian_our_world_data
 ```
 
 ## Examples
@@ -123,3 +150,11 @@ The live command makes network requests and reports one `PASS` or `FAIL` line
 per provider. The INPS check verifies its live dataset catalogue; the unit
 suite covers loading INPS downloadable CSV resources without depending on a
 particular remote file remaining available.
+
+## Publishing A Release
+
+The repository includes a GitHub Actions release workflow for PyPI Trusted
+Publishing. The maintainer must configure a trusted publisher on PyPI once,
+then publish a GitHub release tagged with the matching version, for example
+`v0.1.0`. Detailed steps are in
+[docs/RELEASING.md](docs/RELEASING.md).

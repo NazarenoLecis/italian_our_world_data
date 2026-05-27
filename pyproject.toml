@@ -8,12 +8,30 @@ version = "0.1.0"
 description = "Pandas access to Italian and international public data APIs."
 readme = "README.md"
 requires-python = ">=3.9"
+authors = [
+    { name = "Nazareno Lecis" },
+]
+keywords = ["italy", "open-data", "pandas", "sdmx", "istat", "eurostat"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
     "pandas>=1.5",
     "requests>=2.28",
     "openpyxl>=3.0",
     "xlrd>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/NazarenoLecis/italian_our_world_data"
+Documentation = "https://github.com/NazarenoLecis/italian_our_world_data/blob/main/docs/API.md"
+Repository = "https://github.com/NazarenoLecis/italian_our_world_data"
+Issues = "https://github.com/NazarenoLecis/italian_our_world_data/issues"
 
 [tool.setuptools.packages.find]
 include = ["italian_our_world_data*"]
