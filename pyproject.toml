@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "italian-our-world-data"
+version = "0.1.0"
+description = "Pandas access to Italian and international public data APIs."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "pandas>=1.5",
+    "requests>=2.28",
+    "openpyxl>=3.0",
+    "xlrd>=2.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["italian_our_world_data*"]
