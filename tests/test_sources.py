@@ -84,7 +84,7 @@ class SourceTests(unittest.TestCase):
         session = Session(Response(payload=[{"COD_REG": "03", "DEN_REG": "Lombardia"}]))
         frame = fetch_administrative_boundary_metadata("regioni", session=session)
         self.assertEqual(frame.loc[0, "DEN_REG"], "Lombardia")
-        self.assertIn("/json/regioni/regioni.json", session.calls[0][0])
+        self.assertIn("/latest/regioni.json", session.calls[0][0])
 
     def test_administrative_boundaries_are_geodataframes(self):
         session = Session(Response(payload=self.boundary_geojson))
@@ -92,6 +92,12 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(frame.loc[0, "den_reg"], "Lombardia")
         self.assertEqual(frame.crs.to_string(), "EPSG:4326")
         self.assertIn("geometry", frame.columns)
+        self.assertIn("/latest/regioni.geo.json", session.calls[0][0])
+
+    def test_administrative_boundary_release_can_be_pinned(self):
+        session = Session(Response(payload=self.boundary_geojson))
+        fetch_administrative_boundaries("regioni", release="20200101", session=session)
+        self.assertIn("/20200101/regioni.geo.json", session.calls[0][0])
 
     def test_attach_administrative_boundaries_joins_data(self):
         session = Session(Response(payload=self.boundary_geojson))

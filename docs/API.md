@@ -86,7 +86,8 @@ Supported divisions are `regioni`, `comuni`,
 `ripartizioni-geografiche`, and `unita-territoriali-sovracomunali`, with
 English aliases for common use (`regions`, `municipalities`,
 `macroregions`, and `supra-municipal-units`). The default boundary release
-currently used by the API helper is `20200101`.
+is `latest`; pass an explicit release such as `release="20200101"` when you
+need a reproducible historical boundary layer.
 
 Geographic joins require compatible administrative codes. For example, ISTAT
 regional datasets often expose region identifiers through `ref_area`, while

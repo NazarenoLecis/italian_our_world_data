@@ -138,6 +138,8 @@ print(regions.head())
 
 Use `attach_administrative_boundaries(...)` to join a table with matching
 administrative codes to a boundary layer and get a GeoDataFrame.
+Boundary helpers use the latest available release by default; pass
+`release="20200101"` or another release ID when you need a pinned layer.
 
 ## Notes
 

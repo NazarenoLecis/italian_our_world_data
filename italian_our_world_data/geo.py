@@ -18,8 +18,8 @@ except ImportError:
     from italian_our_world_data._common import DEFAULT_TIMEOUT, DataSourceError, get_json
 
 
-CONFINI_AMMINISTRATIVI_URL = "https://www.confini-amministrativi.it/api/v1"
-DEFAULT_BOUNDARY_RELEASE = "20200101"
+CONFINI_AMMINISTRATIVI_URL = "https://www.confini-amministrativi.it/api/v2/it"
+DEFAULT_BOUNDARY_RELEASE = "latest"
 BOUNDARY_DIVISIONS = {
     "regions": "regioni",
     "regioni": "regioni",
@@ -42,7 +42,8 @@ def _division_path(division: str) -> str:
 
 def _boundary_url(release: str, division: str, data_format: str) -> str:
     path = _division_path(division)
-    return f"{CONFINI_AMMINISTRATIVI_URL}/{release}/{data_format}/{path}/{path}.json"
+    suffix = ".geo.json" if data_format == "geojson" else ".json"
+    return f"{CONFINI_AMMINISTRATIVI_URL}/{release}/{path}{suffix}"
 
 
 def list_administrative_boundary_divisions() -> pd.DataFrame:
