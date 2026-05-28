@@ -27,6 +27,11 @@ dependencies = [
     "xlrd>=2.0",
 ]
 
+[project.optional-dependencies]
+geo = [
+    "geopandas>=0.12",
+]
+
 [project.urls]
 Homepage = "https://github.com/NazarenoLecis/italian_our_world_data"
 Documentation = "https://github.com/NazarenoLecis/italian_our_world_data/blob/main/docs/API.md"

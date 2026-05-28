@@ -22,6 +22,7 @@ OpenPNRR exposes API **resources**.
 
 ```python
 from italian_our_world_data import (
+    attach_administrative_boundaries,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
@@ -30,7 +31,10 @@ from italian_our_world_data import (
     fetch_oecd_data,
     fetch_pnrr_data,
     fetch_world_bank_data,
+    fetch_administrative_boundaries,
+    fetch_administrative_boundary_metadata,
     get_inps_dataset_metadata,
+    list_administrative_boundary_divisions,
     list_ecb_dataflows,
     list_eurostat_dataflows,
     list_inps_datasets,
@@ -47,6 +51,53 @@ Retrieval functions return a `DataFrame`. Observation-oriented responses use
 `time_period` is intentionally a string because sources publish annual,
 quarterly, monthly, and daily frequencies.
 
+## GeoDataFrame Support
+
+Geospatial support is optional so normal pandas users do not need to install
+GeoPandas and its native dependencies. Install the extra when you want maps:
+
+```bash
+python3 -m pip install "italian-our-world-data[geo]"
+```
+
+The geospatial helpers use administrative boundary data from
+[confini-amministrativi.it](https://www.confini-amministrativi.it/) by
+OnData. These endpoints expose ISTAT/ANPR-derived administrative divisions
+as metadata tables and GeoJSON FeatureCollections.
+
+```python
+import pandas as pd
+from italian_our_world_data import (
+    attach_administrative_boundaries,
+    fetch_administrative_boundaries,
+    list_administrative_boundary_divisions,
+)
+
+print(list_administrative_boundary_divisions())
+
+regions = fetch_administrative_boundaries("regioni")
+print(type(regions))  # geopandas.GeoDataFrame
+
+data = pd.DataFrame({"region_code": ["3"], "value": [10]})
+mapped = attach_administrative_boundaries(
+    data,
+    division="regioni",
+    data_key="region_code",
+    boundary_key="cod_reg",
+)
+```
+
+Supported divisions are `regioni`, `comuni`,
+`ripartizioni-geografiche`, and `unita-territoriali-sovracomunali`, with
+English aliases for common use (`regions`, `municipalities`,
+`macroregions`, and `supra-municipal-units`). The default boundary release
+currently used by the API helper is `20200101`.
+
+Geographic joins require compatible administrative codes. For example, ISTAT
+regional datasets often expose region identifiers through `ref_area`, while
+the boundary layer uses `cod_reg`; municipality boundaries use `pro_com_t`
+for zero-padded municipality codes.
+
 ## Availability By Provider
 
 | Provider | Discover in Python | Identifier used by retrieval | Online discovery |
@@ -59,6 +110,7 @@ quarterly, monthly, and daily frequencies.
 | FRED | `search_fred_series("GDP", api_key=...)` | `series_id` | [FRED search](https://fred.stlouisfed.org/) |
 | INPS | `list_inps_datasets()` | `dataset_id` | [INPS Open Data](https://www.inps.it/it/it/dati-e-bilanci/open-data.html) |
 | OpenPNRR | `list_pnrr_resources()` | `resource` | [OpenPNRR](https://openpnrr.it/) |
+| Administrative boundaries | `list_administrative_boundary_divisions()` | division and code column | [confini-amministrativi.it](https://www.confini-amministrativi.it/) |
 
 Catalogue calls for ISTAT, OECD, and Eurostat can return thousands of
 dataflows. Run them intentionally and filter their returned frames locally.

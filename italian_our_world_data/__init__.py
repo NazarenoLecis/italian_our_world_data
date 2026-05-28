@@ -22,6 +22,13 @@ from .sources import (
     search_fred_series,
 )
 
+_GEO_EXPORTS = {
+    "attach_administrative_boundaries",
+    "fetch_administrative_boundaries",
+    "fetch_administrative_boundary_metadata",
+    "list_administrative_boundary_divisions",
+}
+
 __all__ = [
     "DataSourceError",
     "fetch_ecb_data",
@@ -32,8 +39,12 @@ __all__ = [
     "fetch_oecd_data",
     "fetch_pnrr_data",
     "fetch_world_bank_data",
+    "attach_administrative_boundaries",
+    "fetch_administrative_boundaries",
+    "fetch_administrative_boundary_metadata",
     "get_inps_dataset",
     "get_inps_dataset_metadata",
+    "list_administrative_boundary_divisions",
     "list_ecb_dataflows",
     "list_eurostat_dataflows",
     "list_inps_datasets",
@@ -45,3 +56,11 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
+
+
+def __getattr__(name):
+    if name in _GEO_EXPORTS:
+        from . import geo
+
+        return getattr(geo, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -10,6 +10,7 @@ from . import (
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
+    fetch_administrative_boundaries,
     fetch_istat_data,
     fetch_oecd_data,
     fetch_pnrr_data,
@@ -79,6 +80,16 @@ def main() -> int:
         except Exception as exc:
             failures += 1
             print(f"FAIL  {name:<25} {type(exc).__name__}: {exc}")
+    try:
+        frame = fetch_administrative_boundaries("regioni")
+        if frame.empty:
+            raise RuntimeError("empty GeoDataFrame returned")
+        print(f"PASS  {'Geo boundaries':<25} rows={len(frame):>5} columns={len(frame.columns):>2}")
+    except ImportError:
+        print(f"SKIP  {'Geo boundaries':<25} install italian-our-world-data[geo]")
+    except Exception as exc:
+        failures += 1
+        print(f"FAIL  {'Geo boundaries':<25} {type(exc).__name__}: {exc}")
     if failures:
         print(f"\n{failures} provider check(s) failed.")
         return 1

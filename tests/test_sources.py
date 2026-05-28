@@ -1,10 +1,15 @@
 import unittest
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 import requests
 
 from italian_our_world_data import (
     DataSourceError,
+    attach_administrative_boundaries,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
@@ -13,7 +18,10 @@ from italian_our_world_data import (
     fetch_oecd_data,
     fetch_pnrr_data,
     fetch_world_bank_data,
+    fetch_administrative_boundaries,
+    fetch_administrative_boundary_metadata,
     get_inps_dataset_metadata,
+    list_administrative_boundary_divisions,
     list_ecb_dataflows,
     list_eurostat_dataflows,
     list_inps_datasets,
@@ -23,6 +31,13 @@ from italian_our_world_data import (
     list_world_bank_indicators,
     search_fred_series,
 )
+
+try:
+    import geopandas  # noqa: F401
+
+    HAS_GEOPANDAS = True
+except ImportError:
+    HAS_GEOPANDAS = False
 
 
 class Response:
@@ -52,6 +67,53 @@ class Session:
 
 class SourceTests(unittest.TestCase):
     csv_text = "TIME_PERIOD,OBS_VALUE,FREQ\n2023,4.5,A\n"
+    boundary_geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"cod_reg": 3, "den_reg": "Lombardia"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [
+                        [[9.0, 45.0], [10.0, 45.0], [10.0, 46.0], [9.0, 46.0], [9.0, 45.0]]
+                    ],
+                },
+            }
+        ],
+    }
+
+    def test_administrative_boundary_divisions_are_listed(self):
+        frame = list_administrative_boundary_divisions()
+        self.assertIn("regioni", frame["division"].tolist())
+
+    def test_administrative_boundary_metadata_is_loaded(self):
+        session = Session(Response(payload=[{"COD_REG": "03", "DEN_REG": "Lombardia"}]))
+        frame = fetch_administrative_boundary_metadata("regioni", session=session)
+        self.assertEqual(frame.loc[0, "DEN_REG"], "Lombardia")
+        self.assertIn("/json/regioni/regioni.json", session.calls[0][0])
+
+    @unittest.skipUnless(HAS_GEOPANDAS, "GeoPandas is not installed")
+    def test_administrative_boundaries_are_geodataframes(self):
+        session = Session(Response(payload=self.boundary_geojson))
+        frame = fetch_administrative_boundaries("regioni", session=session)
+        self.assertEqual(frame.loc[0, "den_reg"], "Lombardia")
+        self.assertEqual(frame.crs.to_string(), "EPSG:4326")
+        self.assertIn("geometry", frame.columns)
+
+    @unittest.skipUnless(HAS_GEOPANDAS, "GeoPandas is not installed")
+    def test_attach_administrative_boundaries_joins_data(self):
+        session = Session(Response(payload=self.boundary_geojson))
+        data = pd.DataFrame({"region_code": ["3"], "value": [10]})
+        frame = attach_administrative_boundaries(
+            data,
+            division="regioni",
+            data_key="region_code",
+            boundary_key="cod_reg",
+            session=session,
+        )
+        self.assertEqual(frame.loc[0, "value"], 10)
+        self.assertEqual(frame.loc[0, "den_reg"], "Lombardia")
 
     def test_istat_csv_is_normalised(self):
         session = Session(Response(text=self.csv_text))
