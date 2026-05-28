@@ -1,6 +1,12 @@
 """Easy DataFrame access to public data sources relevant to Italy."""
 
 from ._common import DataSourceError
+from .geo import (
+    attach_administrative_boundaries,
+    fetch_administrative_boundaries,
+    fetch_administrative_boundary_metadata,
+    list_administrative_boundary_divisions,
+)
 from .sources import (
     fetch_ecb_data,
     fetch_eurostat_data,
@@ -21,13 +27,6 @@ from .sources import (
     list_world_bank_indicators,
     search_fred_series,
 )
-
-_GEO_EXPORTS = {
-    "attach_administrative_boundaries",
-    "fetch_administrative_boundaries",
-    "fetch_administrative_boundary_metadata",
-    "list_administrative_boundary_divisions",
-}
 
 __all__ = [
     "DataSourceError",
@@ -56,11 +55,3 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
-
-
-def __getattr__(name):
-    if name in _GEO_EXPORTS:
-        from . import geo
-
-        return getattr(geo, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

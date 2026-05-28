@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import geopandas  # noqa: F401
 import pandas as pd
 import requests
 
@@ -31,14 +32,6 @@ from italian_our_world_data import (
     list_world_bank_indicators,
     search_fred_series,
 )
-
-try:
-    import geopandas  # noqa: F401
-
-    HAS_GEOPANDAS = True
-except ImportError:
-    HAS_GEOPANDAS = False
-
 
 class Response:
     def __init__(self, *, text="", payload=None, content=None, status=200):
@@ -93,7 +86,6 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(frame.loc[0, "DEN_REG"], "Lombardia")
         self.assertIn("/json/regioni/regioni.json", session.calls[0][0])
 
-    @unittest.skipUnless(HAS_GEOPANDAS, "GeoPandas is not installed")
     def test_administrative_boundaries_are_geodataframes(self):
         session = Session(Response(payload=self.boundary_geojson))
         frame = fetch_administrative_boundaries("regioni", session=session)
@@ -101,7 +93,6 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(frame.crs.to_string(), "EPSG:4326")
         self.assertIn("geometry", frame.columns)
 
-    @unittest.skipUnless(HAS_GEOPANDAS, "GeoPandas is not installed")
     def test_attach_administrative_boundaries_joins_data(self):
         session = Session(Response(payload=self.boundary_geojson))
         data = pd.DataFrame({"region_code": ["3"], "value": [10]})

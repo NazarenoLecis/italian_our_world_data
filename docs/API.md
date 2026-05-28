@@ -53,17 +53,12 @@ quarterly, monthly, and daily frequencies.
 
 ## GeoDataFrame Support
 
-Geospatial support is optional so normal pandas users do not need to install
-GeoPandas and its native dependencies. Install the extra when you want maps:
-
-```bash
-python3 -m pip install "italian-our-world-data[geo]"
-```
-
 The geospatial helpers use administrative boundary data from
 [confini-amministrativi.it](https://www.confini-amministrativi.it/) by
 OnData. These endpoints expose ISTAT/ANPR-derived administrative divisions
-as metadata tables and GeoJSON FeatureCollections.
+as metadata tables and GeoJSON FeatureCollections. GeoPandas is a normal
+dependency of the library, so GeoDataFrame support is available after the
+standard installation.
 
 ```python
 import pandas as pd

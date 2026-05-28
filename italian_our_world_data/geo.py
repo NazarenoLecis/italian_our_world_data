@@ -1,4 +1,4 @@
-"""Optional GeoPandas helpers for Italian administrative boundaries."""
+"""GeoPandas helpers for Italian administrative boundaries."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import pandas as pd
+import geopandas as gpd
 
 try:
     from ._common import DEFAULT_TIMEOUT, DataSourceError, get_json
@@ -29,17 +30,6 @@ BOUNDARY_DIVISIONS = {
     "supra-municipal-units": "unita-territoriali-sovracomunali",
     "unita-territoriali-sovracomunali": "unita-territoriali-sovracomunali",
 }
-
-
-def _require_geopandas():
-    try:
-        import geopandas as gpd
-    except ImportError as exc:
-        raise ImportError(
-            "GeoPandas support requires the optional geo extra: "
-            "python3 -m pip install 'italian-our-world-data[geo]'"
-        ) from exc
-    return gpd
 
 
 def _division_path(division: str) -> str:
@@ -112,10 +102,8 @@ def fetch_administrative_boundaries(
     """Fetch Italian administrative boundaries as a GeoDataFrame.
 
     Boundaries are provided by https://www.confini-amministrativi.it/ from
-    ISTAT/ANPR-derived data. GeoPandas is optional and required only when this
-    function is used.
+    ISTAT/ANPR-derived data.
     """
-    gpd = _require_geopandas()
     payload = get_json(
         _boundary_url(release, division, "geojson"),
         session=session,

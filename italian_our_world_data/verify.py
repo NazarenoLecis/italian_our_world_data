@@ -85,8 +85,6 @@ def main() -> int:
         if frame.empty:
             raise RuntimeError("empty GeoDataFrame returned")
         print(f"PASS  {'Geo boundaries':<25} rows={len(frame):>5} columns={len(frame.columns):>2}")
-    except ImportError:
-        print(f"SKIP  {'Geo boundaries':<25} install italian-our-world-data[geo]")
     except Exception as exc:
         failures += 1
         print(f"FAIL  {'Geo boundaries':<25} {type(exc).__name__}: {exc}")

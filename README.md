@@ -1,9 +1,9 @@
 # italian_our_world_data
 
 `italian_our_world_data` retrieves public data relevant to Italy as pandas
-`DataFrame` objects. It supports ISTAT, OECD, Eurostat, ECB, World Bank,
-FRED, INPS Open Data, OpenPNRR, and optional GeoPandas integration for
-Italian administrative boundaries.
+`DataFrame` and GeoPandas `GeoDataFrame` objects. It supports ISTAT, OECD,
+Eurostat, ECB, World Bank, FRED, INPS Open Data, OpenPNRR, and Italian
+administrative boundaries.
 
 Full documentation: [docs/API.md](docs/API.md)
 
@@ -38,12 +38,6 @@ In Python, the import name uses underscores:
 
 ```python
 import italian_our_world_data
-```
-
-To use GeoDataFrame helpers for maps, install the optional geospatial extra:
-
-```bash
-python3 -m pip install "italian-our-world-data[geo]"
 ```
 
 ## Examples
@@ -132,8 +126,8 @@ examples for every provider are in [docs/API.md](docs/API.md).
 
 ## GeoDataFrames
 
-The optional geospatial helpers integrate administrative boundary GeoJSON
-from [confini-amministrativi.it](https://www.confini-amministrativi.it/):
+The geospatial helpers integrate administrative boundary GeoJSON from
+[confini-amministrativi.it](https://www.confini-amministrativi.it/):
 
 ```python
 from italian_our_world_data import fetch_administrative_boundaries
