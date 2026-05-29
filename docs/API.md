@@ -12,8 +12,9 @@ The importable API follows three verbs:
 
 Provider terminology is retained because it tells you what identifier is
 needed: ISTAT, OECD, Eurostat, and ECB expose SDMX **dataflows**; World Bank
-exposes **indicators**; FRED exposes **series**; INPS exposes **datasets**;
-OpenPNRR exposes API **resources**.
+exposes **indicators**; FRED exposes **series**; INPS, dati.gov.it, and
+OpenBDAP expose catalogue **datasets**; OpenPNRR and OpenCoesione expose API
+**resources**; Socrata portals expose tabular **dataset IDs**.
 
 `get_inps_dataset()` remains available as a compatibility alias for
 `get_inps_dataset_metadata()`.
@@ -23,24 +24,44 @@ OpenPNRR exposes API **resources**.
 ```python
 from italian_our_world_data import (
     attach_administrative_boundaries,
+    fetch_bankitalia_exchange_rates,
+    fetch_bdap_data,
+    fetch_ckan_resource,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
     fetch_inps_data,
+    fetch_italian_open_data_resource,
     fetch_istat_data,
+    fetch_lombardy_data,
     fetch_oecd_data,
+    fetch_opencoesione_data,
     fetch_pnrr_data,
+    fetch_socrata_data,
     fetch_world_bank_data,
     fetch_administrative_boundaries,
     fetch_administrative_boundary_metadata,
+    get_bdap_dataset_metadata,
+    get_ckan_dataset_metadata,
+    get_ckan_resource_metadata,
     get_inps_dataset_metadata,
+    get_italian_open_data_dataset_metadata,
+    get_lombardy_dataset_metadata,
+    get_socrata_dataset_metadata,
     list_administrative_boundary_divisions,
+    list_bankitalia_currencies,
+    list_bdap_datasets,
+    list_ckan_datasets,
     list_ecb_dataflows,
     list_eurostat_dataflows,
     list_inps_datasets,
+    list_italian_open_data_datasets,
     list_istat_dataflows,
+    list_lombardy_datasets,
     list_oecd_dataflows,
+    list_opencoesione_resources,
     list_pnrr_resources,
+    list_socrata_datasets,
     list_world_bank_indicators,
     search_fred_series,
 )
@@ -106,6 +127,11 @@ for zero-padded municipality codes.
 | FRED | `search_fred_series("GDP", api_key=...)` | `series_id` | [FRED search](https://fred.stlouisfed.org/) |
 | INPS | `list_inps_datasets()` | `dataset_id` | [INPS Open Data](https://www.inps.it/it/it/dati-e-bilanci/open-data.html) |
 | OpenPNRR | `list_pnrr_resources()` | `resource` | [OpenPNRR](https://openpnrr.it/) |
+| OpenCoesione | `list_opencoesione_resources()` | `resource` | [OpenCoesione API](https://opencoesione.gov.it/it/api/) |
+| Bank of Italy exchange rates | `list_bankitalia_currencies()` | date and currency codes | [Bank of Italy exchange-rate portal](https://tassidicambio.bancaditalia.it/) |
+| dati.gov.it / CKAN | `list_italian_open_data_datasets()` or `list_ckan_datasets(...)` | `dataset_id`, `resource_id`, or resource URL | [dati.gov.it](https://www.dati.gov.it/) |
+| OpenBDAP | `list_bdap_datasets()` | `dataset_id`, `resource_id`, or resource URL | [OpenBDAP](https://bdap-opendata.rgs.mef.gov.it/) |
+| Socrata portals | `list_socrata_datasets(...)` | dataset ID | [Regione Lombardia Open Data](https://www.dati.lombardia.it/) |
 | Administrative boundaries | `list_administrative_boundary_divisions()` | division and code column | [confini-amministrativi.it](https://www.confini-amministrativi.it/) |
 
 Catalogue calls for ISTAT, OECD, and Eurostat can return thousands of
@@ -240,6 +266,83 @@ data = fetch_pnrr_data("missioni")
 
 Pass `fetch_all_pages=True` when you intentionally want a complete
 paginated OpenPNRR resource.
+
+### OpenCoesione
+
+```python
+from italian_our_world_data import fetch_opencoesione_data, list_opencoesione_resources
+
+print(list_opencoesione_resources())
+themes = fetch_opencoesione_data("temi", params={"page_size": 2})
+```
+
+Pass `fetch_all_pages=True` for intentionally complete API resources such as
+project or subject lists.
+
+### Bank of Italy Exchange Rates
+
+```python
+from italian_our_world_data import fetch_bankitalia_exchange_rates, list_bankitalia_currencies
+
+currencies = list_bankitalia_currencies()
+usd = fetch_bankitalia_exchange_rates(
+    reference_date="2023-01-03",
+    base_currency="EUR",
+    target_currency="USD",
+)
+latest = fetch_bankitalia_exchange_rates(target_currency="USD")
+```
+
+Daily historical calls use `value`; latest calls expose the source columns
+`eur_rate` and `usd_rate`.
+
+### CKAN Catalogues
+
+```python
+from italian_our_world_data import (
+    fetch_ckan_resource,
+    fetch_italian_open_data_resource,
+    list_bdap_datasets,
+    list_ckan_datasets,
+    list_italian_open_data_datasets,
+)
+
+national = list_italian_open_data_datasets(rows=5)
+bdap = list_bdap_datasets(rows=5)
+
+data = fetch_italian_open_data_resource(
+    resource_url="https://example.gov.it/path/data.csv",
+    resource_format="csv",
+)
+
+other_catalogue = list_ckan_datasets("https://catalogue.example.org", rows=5)
+other_data = fetch_ckan_resource(
+    "https://catalogue.example.org",
+    dataset_id="known-dataset-id",
+)
+```
+
+The generic CKAN helpers also work with portals that expose a non-root CKAN
+action endpoint by passing the full `/api/3/action` URL.
+
+### Socrata Portals
+
+```python
+from italian_our_world_data import (
+    fetch_lombardy_data,
+    fetch_socrata_data,
+    list_lombardy_datasets,
+    list_socrata_datasets,
+)
+
+lombardy = list_lombardy_datasets(limit=10)
+weather = fetch_lombardy_data("y856-h426", limit=10)
+
+other_portal = list_socrata_datasets("https://www.exampledata.org", limit=10)
+other_data = fetch_socrata_data("https://www.exampledata.org", "abcd-1234", limit=100)
+```
+
+Socrata supports SoQL-style query parameters; pass them through `params=`.
 
 ## Testing The Library
 

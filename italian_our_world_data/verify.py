@@ -7,14 +7,19 @@ from typing import Callable
 import pandas as pd
 
 from . import (
+    fetch_bankitalia_exchange_rates,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
     fetch_administrative_boundaries,
+    fetch_italian_open_data_resource,
     fetch_istat_data,
+    fetch_lombardy_data,
     fetch_oecd_data,
+    fetch_opencoesione_data,
     fetch_pnrr_data,
     fetch_world_bank_data,
+    list_bdap_datasets,
     list_inps_datasets,
 )
 
@@ -64,6 +69,30 @@ def _checks() -> list[tuple[str, Callable[[], pd.DataFrame]]]:
         ),
         ("INPS catalogue", lambda: list_inps_datasets(limit=2)),
         ("OpenPNRR", lambda: fetch_pnrr_data("missioni", params={"page_size": 2})),
+        (
+            "Bank of Italy exchange rates",
+            lambda: fetch_bankitalia_exchange_rates(
+                reference_date="2023-01-03",
+                base_currency="EUR",
+                target_currency="USD",
+            ),
+        ),
+        (
+            "dati.gov.it CSV resource",
+            lambda: fetch_italian_open_data_resource(
+                resource_url=(
+                    "https://elezionibarcellonapozzodigotto.risele.it/web2605/"
+                    "comunali/AfflCOM_83005.csv"
+                ),
+                resource_format="csv",
+            ),
+        ),
+        ("OpenBDAP catalogue", lambda: list_bdap_datasets(rows=1)),
+        ("Regione Lombardia Socrata", lambda: fetch_lombardy_data("y856-h426", limit=2)),
+        (
+            "OpenCoesione",
+            lambda: fetch_opencoesione_data("temi", params={"page_size": 2}),
+        ),
     ]
 
 

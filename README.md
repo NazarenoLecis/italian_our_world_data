@@ -3,7 +3,9 @@
 `italian_our_world_data` retrieves public data relevant to Italy as pandas
 `DataFrame` and GeoPandas `GeoDataFrame` objects. It supports ISTAT, OECD,
 Eurostat, ECB, World Bank, FRED, INPS Open Data, OpenPNRR, and Italian
-administrative boundaries.
+administrative boundaries. It also includes Bank of Italy exchange rates,
+OpenCoesione, generic CKAN catalogues such as dati.gov.it and OpenBDAP, and
+generic Socrata portals such as Regione Lombardia Open Data.
 
 Full documentation: [docs/API.md](docs/API.md)
 
@@ -44,9 +46,12 @@ import italian_our_world_data
 
 ```python
 from italian_our_world_data import (
+    fetch_bankitalia_exchange_rates,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_istat_data,
+    fetch_lombardy_data,
+    fetch_opencoesione_data,
     fetch_world_bank_data,
 )
 
@@ -66,6 +71,13 @@ exchange_rate = fetch_ecb_data(
 world_bank_gdp = fetch_world_bank_data(
     "NY.GDP.MKTP.CD", country="ITA", start_year=2022, end_year=2023
 )
+
+exchange_rates = fetch_bankitalia_exchange_rates(
+    reference_date="2023-01-03", base_currency="EUR", target_currency="USD"
+)
+
+cohesion_themes = fetch_opencoesione_data("temi", params={"page_size": 2})
+lombardy_weather = fetch_lombardy_data("y856-h426", limit=10)
 ```
 
 OECD's current SDMX API requires the complete dataflow reference and an
@@ -95,7 +107,10 @@ API endpoint is used instead. The official API requires a key; no-key
 retrieval uses the public CSV download made available by the FRED site.
 INPS functions are `list_inps_datasets()`, `get_inps_dataset_metadata()`, and
 `fetch_inps_data()`; CSV and Excel resources are supported. OpenPNRR
-functions are `list_pnrr_resources()` and `fetch_pnrr_data()`.
+functions are `list_pnrr_resources()` and `fetch_pnrr_data()`. CKAN helpers
+are available through generic functions (`list_ckan_datasets()`,
+`fetch_ckan_resource()`) and named wrappers for the national catalogue and
+OpenBDAP.
 
 Observation APIs normalize their period and numeric observation columns to
 `time_period` and `value`. Periods remain strings so annual, quarterly, and
@@ -111,7 +126,9 @@ returns catalogue information as a `DataFrame`; FRED supports
 from italian_our_world_data import (
     list_ecb_dataflows,
     list_inps_datasets,
+    list_italian_open_data_datasets,
     list_world_bank_indicators,
+    list_opencoesione_resources,
     list_pnrr_resources,
 )
 
@@ -119,6 +136,8 @@ print(list_ecb_dataflows().head())
 print(list_world_bank_indicators(per_page=10).head())
 print(list_inps_datasets(limit=10))
 print(list_pnrr_resources())
+print(list_opencoesione_resources())
+print(list_italian_open_data_datasets(rows=5))
 ```
 
 The complete discovery table, source-browser links, SDMX key guidance, and

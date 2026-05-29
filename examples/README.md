@@ -17,14 +17,19 @@ Available example groups:
 
 | Directory | Provider or purpose |
 | --- | --- |
+| `bankitalia/` | Bank of Italy exchange rates |
+| `bdap/` | OpenBDAP public-finance catalogue |
+| `ckan/` | Generic CKAN and national dati.gov.it catalogue |
 | `ecb/` | European Central Bank |
 | `eurostat/` | Eurostat |
 | `fred/` | FRED public CSV download |
 | `inps/` | INPS catalogue and data retrieval |
 | `istat/` | ISTAT retrieval |
 | `oecd/` | OECD Data Explorer |
+| `opencoesione/` | OpenCoesione API |
 | `pnrr/` | OpenPNRR |
 | `sdmx/` | Shared SDMX-oriented examples |
+| `socrata/` | Generic Socrata and Regione Lombardia Open Data |
 | `world_bank/` | World Bank |
 
 For the public API and dataset discovery workflow, see

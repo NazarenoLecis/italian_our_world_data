@@ -11,24 +11,44 @@ import requests
 from italian_our_world_data import (
     DataSourceError,
     attach_administrative_boundaries,
+    fetch_bankitalia_exchange_rates,
+    fetch_bdap_data,
+    fetch_ckan_resource,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
     fetch_inps_data,
+    fetch_italian_open_data_resource,
     fetch_istat_data,
+    fetch_lombardy_data,
     fetch_oecd_data,
+    fetch_opencoesione_data,
     fetch_pnrr_data,
+    fetch_socrata_data,
     fetch_world_bank_data,
     fetch_administrative_boundaries,
     fetch_administrative_boundary_metadata,
+    get_bdap_dataset_metadata,
+    get_ckan_dataset_metadata,
+    get_ckan_resource_metadata,
     get_inps_dataset_metadata,
+    get_italian_open_data_dataset_metadata,
+    get_lombardy_dataset_metadata,
+    get_socrata_dataset_metadata,
     list_administrative_boundary_divisions,
+    list_bankitalia_currencies,
+    list_bdap_datasets,
+    list_ckan_datasets,
     list_ecb_dataflows,
     list_eurostat_dataflows,
     list_inps_datasets,
+    list_italian_open_data_datasets,
     list_istat_dataflows,
+    list_lombardy_datasets,
     list_oecd_dataflows,
+    list_opencoesione_resources,
     list_pnrr_resources,
+    list_socrata_datasets,
     list_world_bank_indicators,
     search_fred_series,
 )
@@ -227,6 +247,181 @@ class SourceTests(unittest.TestCase):
         )
         frame = fetch_pnrr_data("missioni", fetch_all_pages=True, session=session)
         self.assertEqual(frame["id"].tolist(), [1, 2])
+
+    def test_ckan_lists_metadata_and_downloads_resources(self):
+        dataset = {
+            "name": "dataset-one",
+            "id": "uuid",
+            "title": "Dataset One",
+            "organization": {"title": "Owner"},
+            "license_id": "cc-by",
+            "resources": [{"format": "CSV", "url": "https://files/data.csv"}],
+            "metadata_modified": "2026-01-01",
+        }
+        listing = Session(Response(payload={"success": True, "result": {"results": [dataset]}}))
+        frame = list_ckan_datasets("https://catalogue.test", query="budget", session=listing)
+        self.assertEqual(frame.loc[0, "dataset_id"], "dataset-one")
+        self.assertEqual(frame.loc[0, "organization"], "Owner")
+        self.assertIn("/api/3/action/package_search", listing.calls[0][0])
+        self.assertEqual(listing.calls[0][1]["q"], "budget")
+
+        metadata_session = Session(Response(payload={"success": True, "result": dataset}))
+        metadata = get_ckan_dataset_metadata(
+            "https://catalogue.test/api/3/action", "dataset-one", session=metadata_session
+        )
+        self.assertEqual(metadata["title"], "Dataset One")
+        self.assertIn("/package_show", metadata_session.calls[0][0])
+
+        resource_metadata = {"format": "JSON", "url": "https://files/data.json"}
+        resource_session = Session(Response(payload={"success": True, "result": resource_metadata}))
+        self.assertEqual(
+            get_ckan_resource_metadata("https://catalogue.test", "res1", session=resource_session)[
+                "format"
+            ],
+            "JSON",
+        )
+
+        download = Session(
+            Response(payload={"success": True, "result": dataset}),
+            Response(content=b"a;b\n1;2\n", text=None),
+        )
+        data = fetch_ckan_resource("https://catalogue.test", dataset_id="dataset-one", session=download)
+        self.assertEqual(data.loc[0, "b"], 2)
+
+    def test_named_ckan_wrappers_use_expected_catalogues(self):
+        dataset = {"name": "one", "resources": [{"format": "CSV", "url": "https://files/data.csv"}]}
+        listing = Session(Response(payload={"success": True, "result": {"results": [dataset]}}))
+        self.assertEqual(list_italian_open_data_datasets(session=listing).loc[0, "dataset_id"], "one")
+        self.assertIn("dati.gov.it", listing.calls[0][0])
+
+        metadata = Session(Response(payload={"success": True, "result": dataset}))
+        self.assertIn(
+            "resources",
+            get_italian_open_data_dataset_metadata("one", session=metadata),
+        )
+
+        download = Session(
+            Response(payload={"success": True, "result": dataset}),
+            Response(content=b"x,y\n3,4\n", text=None),
+        )
+        self.assertEqual(
+            fetch_italian_open_data_resource(dataset_id="one", session=download).loc[0, "x"],
+            3,
+        )
+
+        bdap_listing = Session(Response(payload={"success": True, "result": {"results": [dataset]}}))
+        self.assertEqual(list_bdap_datasets(session=bdap_listing).loc[0, "dataset_id"], "one")
+        self.assertIn("bdap-opendata.rgs.mef.gov.it", bdap_listing.calls[0][0])
+
+        bdap_metadata = Session(Response(payload={"success": True, "result": dataset}))
+        self.assertIn("resources", get_bdap_dataset_metadata("one", session=bdap_metadata))
+
+        bdap_download = Session(
+            Response(payload={"success": True, "result": dataset}),
+            Response(content=b"x,y\n5,6\n", text=None),
+        )
+        self.assertEqual(fetch_bdap_data(dataset_id="one", session=bdap_download).loc[0, "y"], 6)
+
+    def test_socrata_lists_metadata_and_fetches_rows(self):
+        listing_payload = [
+            {
+                "id": "abcd-1234",
+                "name": "Sensors",
+                "assetType": "dataset",
+                "category": "Environment",
+                "rowsUpdatedAt": 1770000000,
+            }
+        ]
+        listing = Session(Response(payload=listing_payload))
+        frame = list_socrata_datasets("https://socrata.test", limit=1, session=listing)
+        self.assertEqual(frame.loc[0, "dataset_id"], "abcd-1234")
+        self.assertIn("/api/views.json", listing.calls[0][0])
+        self.assertEqual(listing.calls[0][1]["limit"], 1)
+
+        metadata = get_socrata_dataset_metadata(
+            "https://socrata.test",
+            "abcd-1234",
+            session=Session(Response(payload={"id": "abcd-1234", "name": "Sensors"})),
+        )
+        self.assertEqual(metadata["name"], "Sensors")
+
+        rows = Session(Response(payload=[{"data": "2026-02-01", "valore": "24.3"}]))
+        data = fetch_socrata_data("https://socrata.test", "abcd-1234", limit=2, session=rows)
+        self.assertEqual(data.loc[0, "valore"], "24.3")
+        self.assertEqual(rows.calls[0][1]["$limit"], 2)
+
+    def test_lombardy_wrappers_use_socrata_portal(self):
+        listing = Session(Response(payload=[{"id": "abcd-1234", "name": "Sensors"}]))
+        self.assertEqual(list_lombardy_datasets(session=listing).loc[0, "dataset_id"], "abcd-1234")
+        self.assertIn("dati.lombardia.it", listing.calls[0][0])
+
+        metadata = get_lombardy_dataset_metadata(
+            "abcd-1234", session=Session(Response(payload={"id": "abcd-1234"}))
+        )
+        self.assertEqual(metadata["id"], "abcd-1234")
+
+        rows = Session(Response(payload=[{"idsensore": "1", "valore": "24.3"}]))
+        frame = fetch_lombardy_data("abcd-1234", limit=1, session=rows)
+        self.assertEqual(frame.loc[0, "idsensore"], "1")
+
+    def test_opencoesione_lists_resources_and_paginates(self):
+        listing = Session(Response(payload={"temi": "https://opencoesione.gov.it/it/api/temi/"}))
+        self.assertEqual(list_opencoesione_resources(session=listing).loc[0, "resource"], "temi")
+        session = Session(
+            Response(payload={"results": [{"codice": "01"}], "next": "https://next"}),
+            Response(payload={"results": [{"codice": "02"}], "next": None}),
+        )
+        frame = fetch_opencoesione_data("temi", fetch_all_pages=True, session=session)
+        self.assertEqual(frame["codice"].tolist(), ["01", "02"])
+
+    def test_bankitalia_currencies_and_exchange_rates(self):
+        currencies_payload = {
+            "currencies": [
+                {
+                    "isoCode": "USD",
+                    "name": "U.S. Dollar",
+                    "graph": True,
+                    "countries": [
+                        {
+                            "country": "UNITED STATES",
+                            "countryISO": "US",
+                            "validityStartDate": "1918-02-01",
+                        }
+                    ],
+                }
+            ]
+        }
+        currencies = list_bankitalia_currencies(session=Session(Response(payload=currencies_payload)))
+        self.assertEqual(currencies.loc[0, "currency_code"], "USD")
+        self.assertEqual(currencies.loc[0, "country_iso"], "US")
+
+        daily_payload = {
+            "rates": [
+                {
+                    "isoCode": "USD",
+                    "currency": "U.S. Dollar",
+                    "avgRate": "1.0545",
+                    "referenceDate": "2023-01-03",
+                }
+            ]
+        }
+        session = Session(Response(payload=daily_payload))
+        frame = fetch_bankitalia_exchange_rates(
+            reference_date="2023-01-03",
+            base_currency="EUR",
+            target_currency="USD",
+            session=session,
+        )
+        self.assertEqual(frame.loc[0, "value"], 1.0545)
+        self.assertEqual(frame.loc[0, "time_period"], "2023-01-03")
+        self.assertEqual(session.calls[0][1]["currencyIsoCode"], "EUR")
+        self.assertEqual(session.calls[0][1]["baseCurrencyIsoCode"], "USD")
+
+        latest_payload = {"latestRates": [{"isoCode": "USD", "eurRate": "1.1000"}]}
+        latest = fetch_bankitalia_exchange_rates(
+            target_currency="USD", session=Session(Response(payload=latest_payload))
+        )
+        self.assertEqual(latest.loc[0, "eur_rate"], 1.1)
 
     def test_http_failures_are_source_errors(self):
         with self.assertRaises(DataSourceError):
