@@ -3,3 +3,4 @@ requests>=2.28
 openpyxl>=3.0
 xlrd>=2.0
 geopandas>=0.12
+lxml>=4.9
