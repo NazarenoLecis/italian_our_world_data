@@ -42,6 +42,8 @@ from italian_our_world_data import (
     get_socrata_dataset_metadata,
     list_ameco_variables,
     list_administrative_boundary_divisions,
+    list_bankitalia_bds_catalogue,
+    list_bankitalia_bds_cubes,
     list_bankitalia_currencies,
     list_bdap_datasets,
     list_bis_dataflows,
@@ -86,6 +88,10 @@ class Session:
 
     def get(self, url, params=None, headers=None, timeout=None):
         self.calls.append((url, params, headers, timeout))
+        return self.responses.pop(0)
+
+    def post(self, url, data=None, headers=None, timeout=None):
+        self.calls.append((url, data, headers, timeout))
         return self.responses.pop(0)
 
 
@@ -571,6 +577,46 @@ class SourceTests(unittest.TestCase):
             target_currency="USD", session=Session(Response(payload=latest_payload))
         )
         self.assertEqual(latest.loc[0, "eur_rate"], 1.1)
+
+    def test_bankitalia_bds_catalogue_lists_statistical_cubes(self):
+        roots_payload = [
+            {
+                "id": "BANKITALIA:DIFF:CUBE:PRINC_IND_00",
+                "localId": "PRINC_IND_00",
+                "name": "Principali indicatori",
+                "nodeType": "CUBESET",
+                "childrenNumber": 1,
+                "nodePath": "BANKITALIA/DIFF/CUBE/PRINC_IND_00",
+            }
+        ]
+        children_payload = [
+            {
+                "id": "BANKITALIA:DIFF:CUBE:TUFF0100",
+                "localId": "TUFF0100",
+                "name": "Tassi d'interesse ufficiali dell'Eurosistema",
+                "nodeType": "CUBE",
+                "cubeStatType": "UP_TSCUBE",
+                "childrenNumber": 0,
+                "attributes": {
+                    "SURVEY_ID": "TUFF",
+                    "FIRST_CUBE_DATE": "01/01/1999",
+                    "LAST_CUBE_DATE": "13/04/2026",
+                    "LAST_UPD": "21/05/2026",
+                },
+            }
+        ]
+        session = Session(Response(payload=roots_payload), Response(payload=children_payload))
+        catalogue = list_bankitalia_bds_catalogue(max_depth=1, session=session)
+        self.assertEqual(catalogue.loc[0, "local_id"], "PRINC_IND_00")
+        self.assertEqual(catalogue.loc[1, "node_type"], "CUBE")
+        self.assertIn("SUBTREENODES", session.calls[1][0])
+        self.assertEqual(session.calls[1][1]["id"], "BANKITALIA:DIFF:CUBE:PRINC_IND_00")
+
+        session = Session(Response(payload=roots_payload), Response(payload=children_payload))
+        cubes = list_bankitalia_bds_cubes(max_depth=1, session=session)
+        self.assertEqual(cubes.loc[0, "cube_id"], "BANKITALIA:DIFF:CUBE:TUFF0100")
+        self.assertEqual(cubes.loc[0, "survey_id"], "TUFF")
+        self.assertEqual(cubes.loc[0, "last_update"], "21/05/2026")
 
     def test_http_failures_are_source_errors(self):
         with self.assertRaises(DataSourceError):

@@ -30,6 +30,7 @@ from .sources import (
     fetch_un_population_data,
     fetch_world_bank_data,
     list_ameco_variables,
+    list_bankitalia_bds_cubes,
     list_bankitalia_currencies,
     list_bdap_datasets,
     list_bis_dataflows,
@@ -324,6 +325,27 @@ SOURCE_SPECS: tuple[SourceSpec, ...] = (
     ),
     SourceSpec(
         source="bankitalia",
+        name="Bank of Italy Statistical Database",
+        category="statistical_database",
+        description=(
+            "Bank of Italy BDS taxonomy and statistical cube catalogue, including "
+            "rates, banking, public finance, and external accounts."
+        ),
+        fetch=None,
+        discovery=list_bankitalia_bds_cubes,
+        item_name="cube",
+        identifier_column="cube_id",
+        fetch_parameter="cube_id",
+        required=(),
+        optional=(),
+        discovery_required=(),
+        discovery_optional=("max_depth", "query", "limit"),
+        returns="Catalogue rows for BDS statistical cubes and their metadata.",
+        example='list_indicators("bankitalia", max_depth=3, limit=20)',
+        aliases=("bank_of_italy", "bancaditalia", "banca_ditalia", "bds"),
+    ),
+    SourceSpec(
+        source="bankitalia_exchange_rates",
         name="Bank of Italy exchange rates",
         category="exchange_rate",
         description="Bank of Italy exchange-rate portal daily and latest rates.",
@@ -338,10 +360,10 @@ SOURCE_SPECS: tuple[SourceSpec, ...] = (
         discovery_optional=("lang",),
         returns="Exchange-rate rows with time_period/value or eur_rate/usd_rate.",
         example=(
-            'fetch_data("bankitalia", reference_date="2023-01-03", '
+            'fetch_data("bankitalia_exchange_rates", reference_date="2023-01-03", '
             'base_currency="EUR", target_currency="USD")'
         ),
-        aliases=("bank_of_italy", "bancaditalia"),
+        aliases=("bankitalia_fx", "bank_of_italy_fx", "bancaditalia_fx"),
     ),
     SourceSpec(
         source="italian_open_data",

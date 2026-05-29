@@ -9,6 +9,7 @@ from urllib.parse import quote
 from xml.etree import ElementTree
 
 import pandas as pd
+import requests
 
 from ._common import (
     DEFAULT_TIMEOUT,
@@ -46,6 +47,7 @@ OPENCOESIONE_URL = "https://opencoesione.gov.it/it/api"
 BANKITALIA_EXCHANGE_URL = (
     "https://tassidicambio.bancaditalia.it/terzevalute-wf-web/rest/v1.0"
 )
+BANKITALIA_BDS_URL = "https://a2a.bancaditalia.it/infostat/dataservices"
 DATI_GOV_IT_CKAN_URL = "https://www.dati.gov.it/opendata/api/3/action"
 BDAP_CKAN_URL = "https://bdap-opendata.rgs.mef.gov.it/SpodCkanApi/api/3/action"
 LOMBARDY_SOCRATA_DOMAIN = "https://www.dati.lombardia.it"
@@ -232,6 +234,146 @@ def _bankitalia_rates_frame(payload: Mapping[str, Any]) -> pd.DataFrame:
         if column in frame:
             frame[column] = pd.to_numeric(frame[column], errors="coerce")
     return frame
+
+
+def _bankitalia_bds_home_url(service: str, calltype: Optional[str] = None) -> str:
+    query = f"service={quote(service, safe='')}"
+    if calltype:
+        query = f"calltype={quote(calltype, safe='')}&{query}"
+    return f"{BANKITALIA_BDS_URL}/home?{query}"
+
+
+def _bankitalia_bds_post(
+    service: str,
+    *,
+    data: Optional[Mapping[str, Any]] = None,
+    calltype: Optional[str] = None,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> Any:
+    client = session or requests
+    try:
+        response = client.post(
+            _bankitalia_bds_home_url(service, calltype=calltype),
+            data=dict(data or {}),
+            headers={
+                "Accept": "application/json, text/plain, */*",
+                "X-Requested-With": "XMLHttpRequest",
+            },
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as exc:
+        raise DataSourceError(f"Bank of Italy BDS request failed: {exc}") from exc
+    except ValueError as exc:
+        raise DataSourceError("Bank of Italy BDS returned invalid JSON") from exc
+
+
+def _bankitalia_bds_subtree_payload(node: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in node.items()
+        if key not in {"attributes", "cubes"} and value is not None
+    }
+
+
+def _bankitalia_bds_node_row(
+    node: Mapping[str, Any],
+    *,
+    path: tuple[str, ...],
+    depth: int,
+) -> dict[str, Any]:
+    attributes = node.get("attributes") or {}
+    name = node.get("name") or node.get("localId") or node.get("id")
+    path_parts = path + ((str(name),) if name else ())
+    return {
+        "cube_id": node.get("id"),
+        "local_id": node.get("localId"),
+        "name": name,
+        "node_type": node.get("nodeType"),
+        "cube_stat_type": node.get("cubeStatType"),
+        "children_number": node.get("childrenNumber"),
+        "depth": depth,
+        "path": " > ".join(path_parts),
+        "node_path": node.get("nodePath"),
+        "parent_path": node.get("parentAbsPath"),
+        "survey_id": attributes.get("SURVEY_ID") or node.get("taxoSurveyId"),
+        "first_date": attributes.get("FIRST_CUBE_DATE"),
+        "last_date": attributes.get("LAST_CUBE_DATE"),
+        "last_update": attributes.get("LAST_UPD"),
+        "next_publication": attributes.get("NEXT_PUB"),
+    }
+
+
+def _bankitalia_bds_matches(row: Mapping[str, Any], query: Optional[str]) -> bool:
+    if not query:
+        return True
+    needle = query.lower()
+    haystack = " ".join(
+        str(row.get(column) or "").lower()
+        for column in ("cube_id", "local_id", "name", "path", "survey_id")
+    )
+    return needle in haystack
+
+
+def _bankitalia_bds_catalogue_rows(
+    *,
+    max_depth: Optional[int],
+    query: Optional[str],
+    limit: Optional[int],
+    include_roots: bool,
+    node_type: Optional[str],
+    session: Any,
+    timeout: int,
+) -> list[dict[str, Any]]:
+    roots = _bankitalia_bds_post(
+        "GETTAXOROOTS",
+        session=session,
+        timeout=timeout,
+    )
+    if not isinstance(roots, list):
+        raise DataSourceError("Bank of Italy BDS taxonomy roots were not returned")
+
+    rows: list[dict[str, Any]] = []
+    queue: list[tuple[Mapping[str, Any], tuple[str, ...], int]] = [
+        (root, (), 0) for root in roots
+    ]
+    seen: set[tuple[Optional[str], Optional[str]]] = set()
+
+    while queue:
+        node, path, depth = queue.pop(0)
+        marker = (node.get("id"), node.get("nodePath") or node.get("parentAbsPath"))
+        if marker in seen:
+            continue
+        seen.add(marker)
+
+        row = _bankitalia_bds_node_row(node, path=path, depth=depth)
+        should_include = include_roots or depth > 0
+        if node_type is not None and row.get("node_type") != node_type:
+            should_include = False
+        if should_include and _bankitalia_bds_matches(row, query):
+            rows.append(row)
+            if limit is not None and len(rows) >= limit:
+                break
+
+        name = row.get("name")
+        child_path = path + ((str(name),) if name else ())
+        children = node.get("cubes") or []
+        if max_depth is not None and depth >= max_depth:
+            continue
+        if not children and int(node.get("childrenNumber") or 0) > 0:
+            children = _bankitalia_bds_post(
+                "SUBTREENODES",
+                data=_bankitalia_bds_subtree_payload(node),
+                calltype="asin",
+                session=session,
+                timeout=timeout,
+            )
+        if isinstance(children, list):
+            queue.extend((child, child_path, depth + 1) for child in children)
+
+    return rows
 
 
 def list_ckan_datasets(
@@ -754,6 +896,59 @@ def fetch_bankitalia_exchange_rates(
         timeout=timeout,
     )
     return _bankitalia_rates_frame(payload)
+
+
+def list_bankitalia_bds_catalogue(
+    *,
+    max_depth: Optional[int] = 2,
+    query: Optional[str] = None,
+    limit: Optional[int] = None,
+    include_roots: bool = True,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """Traverse the Bank of Italy Statistical Database taxonomy.
+
+    The BDS portal contains a broad catalogue of statistical cubes: interest
+    rates, money and banking, public finance, balance of payments, surveys, and
+    other Bank of Italy series. ``max_depth`` controls how far the taxonomy is
+    expanded from the roots; pass ``None`` to walk until the remote service has
+    no more child nodes. Use ``limit`` when exploring interactively.
+    """
+    rows = _bankitalia_bds_catalogue_rows(
+        max_depth=max_depth,
+        query=query,
+        limit=limit,
+        include_roots=include_roots,
+        node_type=None,
+        session=session,
+        timeout=timeout,
+    )
+    return pd.DataFrame(rows)
+
+
+def list_bankitalia_bds_cubes(
+    *,
+    max_depth: Optional[int] = None,
+    query: Optional[str] = None,
+    limit: Optional[int] = None,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """List statistical cubes available from the Bank of Italy BDS catalogue."""
+    rows = _bankitalia_bds_catalogue_rows(
+        max_depth=max_depth,
+        query=query,
+        limit=limit,
+        include_roots=False,
+        node_type="CUBE",
+        session=session,
+        timeout=timeout,
+    )
+    frame = pd.DataFrame(rows)
+    if frame.empty or "node_type" not in frame:
+        return frame
+    return frame.reset_index(drop=True)
 
 
 def list_ameco_variables(

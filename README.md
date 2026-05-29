@@ -3,7 +3,8 @@
 `italian_our_world_data` retrieves public data relevant to Italy as pandas
 `DataFrame` and GeoPandas `GeoDataFrame` objects. It supports ISTAT, OECD,
 Eurostat, ECB, World Bank, FRED, INPS Open Data, OpenPNRR, and Italian
-administrative boundaries. It also includes Bank of Italy exchange rates,
+administrative boundaries. It also includes the Bank of Italy Statistical
+Database catalogue and exchange-rate portal,
 OpenCoesione, generic CKAN catalogues such as dati.gov.it and OpenBDAP, and
 generic Socrata portals such as Regione Lombardia Open Data.
 
@@ -75,6 +76,7 @@ python3 -m italian_our_world_data sources
 python3 -m italian_our_world_data info eurostat
 python3 -m italian_our_world_data indicators ameco --format csv | grep NPTD
 python3 -m italian_our_world_data indicators imf -p dataset=WEO --format csv | grep NGDP_RPCH
+python3 -m italian_our_world_data indicators bankitalia -p max_depth=3 -p limit=20 --format csv
 python3 -m italian_our_world_data indicators world_bank -p per_page=20000 --format csv | grep "GDP (current US$)"
 python3 -m italian_our_world_data fetch ameco -p full_variable=1.0.0.0.NPTD -p countries=ITA -p years='[2022, 2023]'
 python3 -m italian_our_world_data fetch world_bank -p indicator=NY.GDP.MKTP.CD -p country=ITA --head 5
@@ -95,6 +97,7 @@ from italian_our_world_data import (
     fetch_lombardy_data,
     fetch_opencoesione_data,
     fetch_world_bank_data,
+    list_bankitalia_bds_cubes,
 )
 
 employment = fetch_istat_data("150_915", ".......", start_period="2023", end_period="2023")
@@ -123,6 +126,8 @@ bis_exchange_rate_index = fetch_bis_data(
 exchange_rates = fetch_bankitalia_exchange_rates(
     reference_date="2023-01-03", base_currency="EUR", target_currency="USD"
 )
+
+bankitalia_cubes = list_bankitalia_bds_cubes(max_depth=3, limit=10)
 
 cohesion_themes = fetch_opencoesione_data("temi", params={"page_size": 2})
 lombardy_weather = fetch_lombardy_data("y856-h426", limit=10)
@@ -173,6 +178,7 @@ returns catalogue information as a `DataFrame`; FRED supports
 ```python
 from italian_our_world_data import (
     list_ameco_variables,
+    list_bankitalia_bds_cubes,
     list_bis_dataflows,
     list_ecb_dataflows,
     list_imf_indicators,
@@ -184,6 +190,7 @@ from italian_our_world_data import (
 )
 
 print(list_ecb_dataflows().head())
+print(list_bankitalia_bds_cubes(max_depth=3, limit=10).head())
 print(list_ameco_variables().head())
 print(list_imf_indicators(dataset="WEO").head())
 print(list_bis_dataflows().head())

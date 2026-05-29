@@ -15,7 +15,8 @@ needed: ISTAT, OECD, Eurostat, ECB, and BIS expose SDMX **dataflows**; World
 Bank, IMF, and UN Population expose **indicators**; AMECO exposes macro
 **variables**; FRED exposes **series**; INPS, dati.gov.it, and OpenBDAP
 expose catalogue **datasets**; OpenPNRR and OpenCoesione expose API
-**resources**; Socrata portals expose tabular **dataset IDs**.
+**resources**; the Bank of Italy Statistical Database exposes statistical
+**cubes**; Socrata portals expose tabular **dataset IDs**.
 
 `get_inps_dataset()` remains available as a compatibility alias for
 `get_inps_dataset_metadata()`.
@@ -58,6 +59,8 @@ from italian_our_world_data import (
     get_socrata_dataset_metadata,
     list_administrative_boundary_divisions,
     list_ameco_variables,
+    list_bankitalia_bds_catalogue,
+    list_bankitalia_bds_cubes,
     list_indicators,
     list_source_items,
     list_sources,
@@ -209,6 +212,7 @@ for zero-padded municipality codes.
 | INPS | `list_inps_datasets()` | `dataset_id` | [INPS Open Data](https://www.inps.it/it/it/dati-e-bilanci/open-data.html) |
 | OpenPNRR | `list_pnrr_resources()` | `resource` | [OpenPNRR](https://openpnrr.it/) |
 | OpenCoesione | `list_opencoesione_resources()` | `resource` | [OpenCoesione API](https://opencoesione.gov.it/it/api/) |
+| Bank of Italy Statistical Database | `list_bankitalia_bds_cubes()` | `cube_id` for BDS cubes | [Bank of Italy BDS](https://a2a.bancaditalia.it/infostat/) |
 | Bank of Italy exchange rates | `list_bankitalia_currencies()` | date and currency codes | [Bank of Italy exchange-rate portal](https://tassidicambio.bancaditalia.it/) |
 | dati.gov.it / CKAN | `list_italian_open_data_datasets()` or `list_ckan_datasets(...)` | `dataset_id`, `resource_id`, or resource URL | [dati.gov.it](https://www.dati.gov.it/) |
 | OpenBDAP | `list_bdap_datasets()` | `dataset_id`, `resource_id`, or resource URL | [OpenBDAP](https://bdap-opendata.rgs.mef.gov.it/) |
@@ -294,6 +298,10 @@ data = fetch_ecb_data(
     "EXR", "D.USD.EUR.SP00.A", start_period="2023-01-02", end_period="2023-01-06"
 )
 ```
+
+`EXR` is only one ECB dataflow. Use `list_ecb_dataflows()` to discover the
+full ECB Data Portal catalogue, then pass the chosen dataflow ID as `dataset`
+with the SDMX key shown by the ECB portal for that dataset.
 
 ### AMECO
 
@@ -421,6 +429,24 @@ themes = fetch_opencoesione_data("temi", params={"page_size": 2})
 
 Pass `fetch_all_pages=True` for intentionally complete API resources such as
 project or subject lists.
+
+### Bank of Italy Statistical Database
+
+```python
+from italian_our_world_data import list_bankitalia_bds_catalogue, list_bankitalia_bds_cubes
+
+taxonomy = list_bankitalia_bds_catalogue(max_depth=2)
+print(taxonomy[["local_id", "name", "node_type", "path"]].head())
+
+cubes = list_bankitalia_bds_cubes(max_depth=3, limit=20)
+print(cubes[["cube_id", "local_id", "name", "last_update"]].head())
+```
+
+The BDS catalogue is much broader than exchange rates. It includes Bank of
+Italy statistical cubes for interest rates, money and banking, public finance,
+external accounts, and other published series. Use `cube_id` from the returned
+frame as the stable identifier for a cube. Add `query="debito"` or another
+search term when you want to filter the traversal.
 
 ### Bank of Italy Exchange Rates
 

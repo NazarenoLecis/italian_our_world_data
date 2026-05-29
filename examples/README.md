@@ -18,7 +18,7 @@ Available example groups:
 | Directory | Provider or purpose |
 | --- | --- |
 | `ameco/` | European Commission AMECO |
-| `bankitalia/` | Bank of Italy exchange rates |
+| `bankitalia/` | Bank of Italy BDS catalogue and exchange rates |
 | `bdap/` | OpenBDAP public-finance catalogue |
 | `bis/` | Bank for International Settlements |
 | `ckan/` | Generic CKAN and national dati.gov.it catalogue |

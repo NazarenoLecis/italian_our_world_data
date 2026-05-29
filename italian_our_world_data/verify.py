@@ -29,6 +29,7 @@ from italian_our_world_data import (
     fetch_opencoesione_data,
     fetch_pnrr_data,
     fetch_world_bank_data,
+    list_bankitalia_bds_cubes,
     list_bdap_datasets,
     list_inps_datasets,
     list_un_population_indicators,
@@ -128,6 +129,10 @@ def _checks() -> list[tuple[str, Callable[[], pd.DataFrame]]]:
                 base_currency="EUR",
                 target_currency="USD",
             ),
+        ),
+        (
+            "Bank of Italy BDS catalogue",
+            lambda: list_bankitalia_bds_cubes(max_depth=3, limit=3),
         ),
         (
             "dati.gov.it CSV resource",

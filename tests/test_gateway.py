@@ -47,6 +47,10 @@ class Session:
         self.calls.append((url, params, headers, timeout))
         return self.responses.pop(0)
 
+    def post(self, url, data=None, headers=None, timeout=None):
+        self.calls.append((url, data, headers, timeout))
+        return self.responses.pop(0)
+
 
 class GatewayTests(unittest.TestCase):
     def test_sources_are_listed_with_gateway_functions(self):
@@ -56,6 +60,8 @@ class GatewayTests(unittest.TestCase):
         self.assertIn("ameco", frame["source"].tolist())
         self.assertIn("imf", frame["source"].tolist())
         self.assertIn("bis", frame["source"].tolist())
+        self.assertIn("bankitalia", frame["source"].tolist())
+        self.assertIn("bankitalia_exchange_rates", frame["source"].tolist())
         self.assertIn("identifier_column", frame.columns)
         self.assertIn("fetch_data", source_info("istat")["example"])
 
@@ -70,6 +76,8 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(get_source_info("wb")["source"], "world_bank")
         self.assertEqual(get_source_info("weo")["source"], "imf")
         self.assertEqual(get_source_info("ecfin")["source"], "ameco")
+        self.assertEqual(get_source_info("bds")["source"], "bankitalia")
+        self.assertEqual(get_source_info("bankitalia_fx")["source"], "bankitalia_exchange_rates")
 
     def test_source_items_explain_identifier_columns_without_source(self):
         frame = list_source_items()
@@ -112,6 +120,32 @@ class GatewayTests(unittest.TestCase):
 
         session = Session(Response(payload={"missioni": "https://openpnrr.it/api/v1/missioni"}))
         self.assertEqual(list_source_items("openpnrr", session=session).loc[0, "resource"], "missioni")
+
+        roots_payload = [
+            {
+                "id": "BANKITALIA:DIFF:CUBE:ROOT",
+                "localId": "ROOT",
+                "name": "Root",
+                "nodeType": "CUBESET",
+                "childrenNumber": 1,
+                "nodePath": "BANKITALIA/DIFF/CUBE/ROOT",
+            }
+        ]
+        children_payload = [
+            {
+                "id": "BANKITALIA:DIFF:CUBE:TUFF0100",
+                "localId": "TUFF0100",
+                "name": "Tassi ufficiali",
+                "nodeType": "CUBE",
+                "childrenNumber": 0,
+            }
+        ]
+        frame = list_indicators(
+            "bankitalia",
+            max_depth=1,
+            session=Session(Response(payload=roots_payload), Response(payload=children_payload)),
+        )
+        self.assertEqual(frame.loc[0, "cube_id"], "BANKITALIA:DIFF:CUBE:TUFF0100")
 
     def test_unknown_source_has_clear_error(self):
         with self.assertRaisesRegex(ValueError, "Unknown source"):
