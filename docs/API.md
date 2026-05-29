@@ -11,9 +11,10 @@ The importable API follows three verbs:
 | `get_<provider>_<resource>_metadata(...)` | Retrieve metadata for one object | `dict` |
 
 Provider terminology is retained because it tells you what identifier is
-needed: ISTAT, OECD, Eurostat, and ECB expose SDMX **dataflows**; World Bank
-exposes **indicators**; FRED exposes **series**; INPS, dati.gov.it, and
-OpenBDAP expose catalogue **datasets**; OpenPNRR and OpenCoesione expose API
+needed: ISTAT, OECD, Eurostat, ECB, and BIS expose SDMX **dataflows**; World
+Bank, IMF, and UN Population expose **indicators**; AMECO exposes macro
+**variables**; FRED exposes **series**; INPS, dati.gov.it, and OpenBDAP
+expose catalogue **datasets**; OpenPNRR and OpenCoesione expose API
 **resources**; Socrata portals expose tabular **dataset IDs**.
 
 `get_inps_dataset()` remains available as a compatibility alias for
@@ -25,13 +26,16 @@ OpenBDAP expose catalogue **datasets**; OpenPNRR and OpenCoesione expose API
 from italian_our_world_data import (
     attach_administrative_boundaries,
     discover_data,
+    fetch_ameco_data,
     fetch_data,
     fetch_bankitalia_exchange_rates,
     fetch_bdap_data,
+    fetch_bis_data,
     fetch_ckan_resource,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
+    fetch_imf_data,
     fetch_inps_data,
     fetch_italian_open_data_resource,
     fetch_istat_data,
@@ -40,6 +44,7 @@ from italian_our_world_data import (
     fetch_opencoesione_data,
     fetch_pnrr_data,
     fetch_socrata_data,
+    fetch_un_population_data,
     fetch_world_bank_data,
     fetch_administrative_boundaries,
     fetch_administrative_boundary_metadata,
@@ -52,14 +57,18 @@ from italian_our_world_data import (
     get_lombardy_dataset_metadata,
     get_socrata_dataset_metadata,
     list_administrative_boundary_divisions,
+    list_ameco_variables,
     list_indicators,
     list_source_items,
     list_sources,
     list_bankitalia_currencies,
     list_bdap_datasets,
+    list_bis_dataflows,
     list_ckan_datasets,
     list_ecb_dataflows,
     list_eurostat_dataflows,
+    list_imf_countries,
+    list_imf_indicators,
     list_inps_datasets,
     list_italian_open_data_datasets,
     list_istat_dataflows,
@@ -68,6 +77,8 @@ from italian_our_world_data import (
     list_opencoesione_resources,
     list_pnrr_resources,
     list_socrata_datasets,
+    list_un_population_indicators,
+    list_un_population_locations,
     list_world_bank_indicators,
     search_fred_series,
     source_info,
@@ -115,7 +126,8 @@ gdp = fetch_data(
 ```
 
 Source aliases are accepted for common variants such as `world-bank`,
-`worldbank`, `bank_of_italy`, `openpnrr`, and `boundaries`.
+`worldbank`, `weo`, `ecfin`, `bank_of_italy`, `openpnrr`, and
+`boundaries`.
 
 The command-line interface exposes the same idea:
 
@@ -123,8 +135,11 @@ The command-line interface exposes the same idea:
 python3 -m italian_our_world_data sources
 python3 -m italian_our_world_data info bankitalia
 python3 -m italian_our_world_data indicators
+python3 -m italian_our_world_data indicators ameco --format csv | grep NPTD
+python3 -m italian_our_world_data indicators imf -p dataset=WEO --format csv | grep NGDP_RPCH
 python3 -m italian_our_world_data indicators world_bank -p per_page=20000 --format csv | grep "GDP (current US$)"
 python3 -m italian_our_world_data discover pnrr -p params='{"page_size": 2}'
+python3 -m italian_our_world_data fetch ameco -p full_variable=1.0.0.0.NPTD -p countries=ITA -p years='[2022, 2023]'
 python3 -m italian_our_world_data fetch world_bank -p indicator=NY.GDP.MKTP.CD -p country=ITA --head 5
 ```
 
@@ -185,8 +200,12 @@ for zero-padded municipality codes.
 | OECD | `list_oecd_dataflows()` | full SDMX dataflow reference and ordered `key` | [OECD Data Explorer](https://data-explorer.oecd.org/) |
 | Eurostat | `list_eurostat_dataflows()` | `dataflow_id` and filters | [Eurostat Data Browser](https://ec.europa.eu/eurostat/databrowser/) |
 | ECB | `list_ecb_dataflows()` | dataflow ID and SDMX `key` | [ECB Data Portal](https://data.ecb.europa.eu/) |
+| AMECO | `list_ameco_variables()` | `full_variable` | [AMECO database](https://economy-finance.ec.europa.eu/economic-research-and-databases/economic-databases/ameco-database_en) |
 | World Bank | `list_world_bank_indicators()` | `indicator_id` | [World Bank Indicators](https://data.worldbank.org/indicator) |
+| IMF DataMapper | `list_imf_indicators()` | `indicator_id` | [IMF DataMapper](https://www.imf.org/external/datamapper/) |
+| UN Population Data Portal | `list_un_population_indicators()` | `indicator_id` and `location_id` | [UN Population Data Portal](https://population.un.org/dataportal/) |
 | FRED | `search_fred_series("GDP", api_key=...)` | `series_id` | [FRED search](https://fred.stlouisfed.org/) |
+| BIS | `list_bis_dataflows()` | dataflow reference and ordered SDMX `key` | [BIS statistics](https://stats.bis.org/) |
 | INPS | `list_inps_datasets()` | `dataset_id` | [INPS Open Data](https://www.inps.it/it/it/dati-e-bilanci/open-data.html) |
 | OpenPNRR | `list_pnrr_resources()` | `resource` | [OpenPNRR](https://openpnrr.it/) |
 | OpenCoesione | `list_opencoesione_resources()` | `resource` | [OpenCoesione API](https://opencoesione.gov.it/it/api/) |
@@ -276,6 +295,21 @@ data = fetch_ecb_data(
 )
 ```
 
+### AMECO
+
+```python
+from italian_our_world_data import fetch_ameco_data, list_ameco_variables
+
+variables = list_ameco_variables()
+print(variables[variables["description"].str.contains("population", case=False, na=False)].head())
+
+data = fetch_ameco_data("1.0.0.0.NPTD", countries="ITA", years=[2022, 2023])
+```
+
+AMECO retrieval uses `full_variable`, for example `1.0.0.0.NPTD`. The
+catalogue returned by `list_ameco_variables()` includes that full code and
+the shorter AMECO variable mnemonic.
+
 ### World Bank
 
 ```python
@@ -286,6 +320,34 @@ print(indicators[indicators["name"].str.contains("GDP", case=False, na=False)].h
 
 data = fetch_world_bank_data("NY.GDP.MKTP.CD", country="ITA", start_year=2022, end_year=2023)
 ```
+
+### IMF DataMapper
+
+```python
+from italian_our_world_data import fetch_imf_data, list_imf_indicators
+
+indicators = list_imf_indicators(dataset="WEO")
+print(indicators[indicators["name"].str.contains("GDP", case=False, na=False)].head())
+
+data = fetch_imf_data("NGDP_RPCH", countries="ITA", periods=[2022, 2023])
+```
+
+The IMF DataMapper gateway is useful for WEO macro indicators. Use
+`list_imf_indicators()` to find the `indicator_id`, then pass one or more
+country codes through `countries`.
+
+### UN Population
+
+```python
+from italian_our_world_data import list_un_population_indicators, list_un_population_locations
+
+indicators = list_un_population_indicators(page_size=20)
+locations = list_un_population_locations(page_size=20)
+```
+
+The UN Population catalogue endpoints are public. The data endpoint can
+require a bearer token from the portal; pass `auth_token=` or set
+`UN_POPULATION_TOKEN` when calling `fetch_un_population_data()`.
 
 ### FRED
 
@@ -298,6 +360,25 @@ data = fetch_fred_data("GDP", start_period="2023-01-01", end_period="2023-12-31"
 # A key is required by the official FRED series-search API.
 matches = search_fred_series("Italian GDP", api_key="your_fred_api_key")
 ```
+
+### BIS
+
+```python
+from italian_our_world_data import fetch_bis_data, list_bis_dataflows
+
+flows = list_bis_dataflows()
+print(flows.head())
+
+data = fetch_bis_data(
+    "BIS,WS_EER,1.0",
+    "M.N.B.IT",
+    start_period="2023-01",
+    end_period="2023-03",
+)
+```
+
+BIS retrieval follows SDMX conventions: the `dataflow` identifies the series
+family and `key` is the ordered dimension key.
 
 ### INPS
 

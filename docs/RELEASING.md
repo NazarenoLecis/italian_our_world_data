@@ -52,7 +52,7 @@ API token needs to be stored in GitHub.
    `italian_our_world_data/__init__.py` to the same new value.
 2. Commit the version change and push it to `main`.
 3. On GitHub, create a release with a version tag matching that value, such
-   as `v2.0.0`.
+   as `v2.1.0`.
 4. The `Publish package to PyPI` workflow builds, validates, tests, and
    publishes the distributions to PyPI.
 5. Verify the published install in a fresh environment:
@@ -69,7 +69,7 @@ Before PyPI publishing, or when selecting a precise source revision, users
 can install a tagged repository release:
 
 ```bash
-python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git@v2.0.0"
+python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git@v2.1.0"
 ```
 
 Create the tag first by publishing the corresponding GitHub release.

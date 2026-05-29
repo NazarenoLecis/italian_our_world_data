@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from io import BytesIO
+from io import BytesIO, StringIO
 from typing import Any, Mapping, Optional
 from urllib.parse import quote
 from xml.etree import ElementTree
@@ -29,6 +29,14 @@ EUROSTAT_URL = "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/d
 EUROSTAT_DATAFLOW_URL = "https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/dataflow"
 ECB_URL = "https://data-api.ecb.europa.eu/service/data"
 ECB_DATAFLOW_URL = "https://data-api.ecb.europa.eu/service/dataflow"
+AMECO_URL = "https://ec.europa.eu/economy_finance/ameco/wq/series"
+AMECO_VARIABLES_URL = (
+    "https://economy-finance.ec.europa.eu/document/download/"
+    "5cb507d5-10ac-4470-ad93-66c91a89bd72_en"
+)
+IMF_DATAMAPPER_URL = "https://www.imf.org/external/datamapper/api/v1"
+UN_POPULATION_URL = "https://population.un.org/dataportalapi/api/v1"
+BIS_URL = "https://stats.bis.org/api/v1"
 WORLD_BANK_URL = "https://api.worldbank.org/v2"
 FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations"
 FRED_DOWNLOAD_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv"
@@ -156,6 +164,29 @@ def _normalise_json_table(payload: Any) -> pd.DataFrame:
                     return pd.json_normalize(value)
         return pd.json_normalize([payload])
     raise DataSourceError("JSON response is not tabular")
+
+
+def _as_list(value: Any) -> list[Any]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        if "," in value:
+            return [item.strip() for item in value.split(",") if item.strip()]
+        if ";" in value:
+            return [item.strip() for item in value.split(";") if item.strip()]
+        return [value]
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    return [value]
+
+
+def _normalise_portal_rows(payload: Mapping[str, Any]) -> pd.DataFrame:
+    rows = payload.get("data", [])
+    return pd.json_normalize(rows)
+
+
+def _year_columns(frame: pd.DataFrame) -> list[str]:
+    return [column for column in frame.columns if str(column).isdigit()]
 
 
 def _select_ckan_resource(
@@ -723,6 +754,375 @@ def fetch_bankitalia_exchange_rates(
         timeout=timeout,
     )
     return _bankitalia_rates_frame(payload)
+
+
+def list_ameco_variables(
+    *,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """List AMECO variable codes from the Commission's official workbook."""
+    response = get_response(
+        AMECO_VARIABLES_URL,
+        params={"filename": "Ameco Online list of variables 20250121.xlsx"},
+        session=session,
+        timeout=timeout,
+    )
+    frame = pd.read_excel(BytesIO(response.content))
+    frame = frame.rename(
+        columns={
+            "Unnamed: 0": "chapter_id",
+            "CHAPTER": "chapter",
+            "Unnamed: 2": "subchapter_id",
+            "SUB-CHAPTER": "subchapter",
+            "AMECO\nCODE": "variable",
+            "DESCRIPTION": "description",
+        }
+    )
+    frame = frame.dropna(subset=["variable"]).reset_index(drop=True)
+    frame["variable"] = frame["variable"].astype(str).str.strip()
+    frame["full_variable"] = "1.0.0.0." + frame["variable"]
+    columns = [
+        "full_variable",
+        "variable",
+        "description",
+        "chapter_id",
+        "chapter",
+        "subchapter_id",
+        "subchapter",
+    ]
+    return frame[[column for column in columns if column in frame.columns]]
+
+
+def fetch_ameco_data(
+    full_variable: str,
+    *,
+    countries: Any = "ITA",
+    years: Any = None,
+    last_year: bool = False,
+    year_order: str = "ASC",
+    params: Optional[Mapping[str, Any]] = None,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """Retrieve one AMECO series from the legacy online series endpoint.
+
+    ``full_variable`` is the AMECO full indicator code, for example
+    ``1.0.0.0.NPTD``. Use :func:`list_ameco_variables` to discover variable
+    codes, then pass one or more country codes through ``countries``.
+    """
+    query = dict(params or {})
+    query.update(
+        {
+            "fullVariable": full_variable,
+            "countries": ",".join(str(item) for item in _as_list(countries)),
+            "Lastyear": int(last_year),
+            "Yearorder": year_order,
+        }
+    )
+    if years is not None:
+        query["years"] = ",".join(str(item) for item in _as_list(years))
+    response = get_response(AMECO_URL, params=query, session=session, timeout=timeout)
+    try:
+        tables = pd.read_html(StringIO(response.text))
+    except ValueError as exc:
+        raise DataSourceError("AMECO did not return a readable table") from exc
+    if not tables:
+        raise DataSourceError("AMECO did not return any data table")
+    frame = tables[0]
+    years_found = _year_columns(frame)
+    if not years_found:
+        return frame
+    id_columns = [column for column in frame.columns if column not in years_found]
+    melted = frame.melt(
+        id_vars=id_columns,
+        value_vars=years_found,
+        var_name="time_period",
+        value_name="value",
+    )
+    melted = melted.rename(
+        columns={
+            "Country": "country",
+            "Label": "indicator",
+            "Unit": "unit",
+        }
+    )
+    melted["full_variable"] = full_variable
+    melted["value"] = pd.to_numeric(melted["value"], errors="coerce")
+    columns = [
+        "full_variable",
+        "country",
+        "indicator",
+        "unit",
+        "time_period",
+        "value",
+    ]
+    return observations_frame(melted[[column for column in columns if column in melted.columns]])
+
+
+def list_imf_indicators(
+    *,
+    dataset: Optional[str] = None,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """List IMF DataMapper indicators and metadata."""
+    payload = get_json(
+        f"{IMF_DATAMAPPER_URL}/indicators",
+        session=session,
+        timeout=timeout,
+    )
+    indicators = payload.get("indicators", {})
+    rows = []
+    for indicator_id, metadata in indicators.items():
+        row = {
+            "indicator_id": indicator_id,
+            "name": metadata.get("label"),
+            "description": metadata.get("description"),
+            "source": metadata.get("source"),
+            "unit": metadata.get("unit"),
+            "dataset": metadata.get("dataset"),
+            "last_modified": metadata.get("last-modified"),
+        }
+        if dataset is None or str(row["dataset"]).lower() == dataset.lower():
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def list_imf_countries(
+    *,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """List IMF DataMapper country and area codes."""
+    payload = get_json(
+        f"{IMF_DATAMAPPER_URL}/countries",
+        session=session,
+        timeout=timeout,
+    )
+    countries = payload.get("countries", {})
+    rows = []
+    for country_id, metadata in countries.items():
+        rows.append(
+            {
+                "country_id": country_id,
+                "name": metadata.get("label") or metadata.get("name"),
+                "iso2": metadata.get("iso2"),
+                "region": metadata.get("region"),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def fetch_imf_data(
+    indicator: str,
+    *,
+    countries: Any = "ITA",
+    periods: Any = None,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """Retrieve one IMF DataMapper indicator for selected countries."""
+    requested_countries = [str(country).upper() for country in _as_list(countries)]
+    requested_periods = [str(period) for period in _as_list(periods)]
+    country_path = ",".join(requested_countries) if requested_countries else "all"
+    query = {"periods": ",".join(requested_periods)} if requested_periods else None
+    payload = get_json(
+        f"{IMF_DATAMAPPER_URL}/{quote(indicator, safe='._-')}/{quote(country_path, safe=',._-')}",
+        params=query,
+        session=session,
+        timeout=timeout,
+    )
+    values = payload.get("values", {}).get(indicator, {})
+    metadata = payload.get("indicator", {}) or payload.get("indicators", {}).get(indicator, {})
+    rows = []
+    for country_id, observations in values.items():
+        if requested_countries and country_id.upper() not in requested_countries:
+            continue
+        for period, value in observations.items():
+            if requested_periods and str(period) not in requested_periods:
+                continue
+            rows.append(
+                {
+                    "country_id": country_id,
+                    "indicator_id": indicator,
+                    "indicator": metadata.get("label") or indicator,
+                    "unit": metadata.get("unit"),
+                    "dataset": metadata.get("dataset"),
+                    "source": metadata.get("source"),
+                    "time_period": str(period),
+                    "value": value,
+                }
+            )
+    return observations_frame(pd.DataFrame(rows))
+
+
+def list_un_population_indicators(
+    *,
+    page_size: int = 100,
+    page_number: int = 1,
+    fetch_all_pages: bool = False,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """List indicators from the UN Population Data Portal."""
+    rows = []
+    current_page = page_number
+    while True:
+        payload = get_json(
+            f"{UN_POPULATION_URL}/indicators",
+            params={"pageSize": page_size, "pageNumber": current_page},
+            session=session,
+            timeout=timeout,
+        )
+        rows.extend(payload.get("data", []))
+        pages = int(payload.get("pages") or current_page)
+        if not fetch_all_pages or current_page >= pages:
+            break
+        current_page += 1
+    frame = pd.json_normalize(rows)
+    if frame.empty:
+        return frame
+    return frame.rename(
+        columns={
+            "id": "indicator_id",
+            "name": "name",
+            "shortName": "short_name",
+            "sourceName": "source",
+            "sourceYear": "source_year",
+            "unitLongLabel": "unit",
+            "topicName": "topic",
+        }
+    )
+
+
+def list_un_population_locations(
+    *,
+    page_size: int = 100,
+    page_number: int = 1,
+    fetch_all_pages: bool = False,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """List locations from the UN Population Data Portal."""
+    rows = []
+    current_page = page_number
+    while True:
+        payload = get_json(
+            f"{UN_POPULATION_URL}/locations",
+            params={"pageSize": page_size, "pageNumber": current_page},
+            session=session,
+            timeout=timeout,
+        )
+        rows.extend(payload.get("data", []))
+        pages = int(payload.get("pages") or current_page)
+        if not fetch_all_pages or current_page >= pages:
+            break
+        current_page += 1
+    frame = pd.json_normalize(rows)
+    if frame.empty:
+        return frame
+    return frame.rename(columns={"id": "location_id", "name": "location"})
+
+
+def fetch_un_population_data(
+    indicator_id: int,
+    *,
+    location_id: int = 380,
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+    auth_token: Optional[str] = None,
+    params: Optional[Mapping[str, Any]] = None,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """Retrieve UN Population Data Portal values.
+
+    The public catalogue is open. The data endpoint can require a bearer token;
+    pass ``auth_token`` or set ``UN_POPULATION_TOKEN`` when the portal enforces
+    authentication.
+    """
+    token = auth_token or os.getenv("UN_POPULATION_TOKEN")
+    if not token:
+        raise ValueError("auth_token or UN_POPULATION_TOKEN is required for UN population data")
+    start = start_year if start_year is not None else 1950
+    end = end_year if end_year is not None else 2100
+    query = dict(params or {})
+    headers = {"Authorization": f"Bearer {token}"}
+    payload = get_json(
+        f"{UN_POPULATION_URL}/data/indicators/{indicator_id}/locations/{location_id}"
+        f"/start/{start}/end/{end}",
+        params=query or None,
+        headers=headers,
+        session=session,
+        timeout=timeout,
+    )
+    frame = _normalise_portal_rows(payload)
+    if frame.empty:
+        return frame
+    frame = frame.rename(
+        columns={
+            "location.id": "location_id",
+            "location.name": "location",
+            "indicator.id": "indicator_id",
+            "indicator.name": "indicator",
+            "timeLabel": "time_period",
+            "time": "time_period",
+        }
+    )
+    return observations_frame(frame)
+
+
+def list_bis_dataflows(
+    provider: str = "BIS",
+    *,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """List BIS SDMX dataflows."""
+    payload = get_json(
+        f"{BIS_URL}/dataflow/{quote(provider, safe='._-')}/all/latest",
+        params={"references": "none"},
+        headers={"Accept": "application/vnd.sdmx.structure+json;version=1.0.0"},
+        session=session,
+        timeout=timeout,
+    )
+    frame = _sdmx_json_dataflows(payload)
+    if not frame.empty:
+        frame["dataflow"] = (
+            frame["agency_id"].fillna(provider)
+            + ","
+            + frame["dataflow_id"].fillna("")
+            + ","
+            + frame["version"].fillna("latest")
+        )
+        first = ["dataflow"]
+        frame = frame[first + [column for column in frame.columns if column not in first]]
+    return frame
+
+
+def fetch_bis_data(
+    dataflow: str,
+    key: str = "",
+    *,
+    start_period: Optional[str] = None,
+    end_period: Optional[str] = None,
+    params: Optional[Mapping[str, Any]] = None,
+    session: Any = None,
+    timeout: int = DEFAULT_TIMEOUT,
+) -> pd.DataFrame:
+    """Retrieve observations from the BIS SDMX API."""
+    url = f"{BIS_URL}/data/{quote(dataflow, safe=',._-')}"
+    if key:
+        url = f"{url}/{quote(key, safe='.+_-')}"
+    query = dict(params or {})
+    query["format"] = "csv"
+    if start_period is not None:
+        query["startPeriod"] = start_period
+    if end_period is not None:
+        query["endPeriod"] = end_period
+    response = get_response(url, params=query, session=session, timeout=timeout)
+    return observations_frame(csv_frame(response))
 
 
 def list_istat_dataflows(*, session: Any = None, timeout: int = DEFAULT_TIMEOUT) -> pd.DataFrame:

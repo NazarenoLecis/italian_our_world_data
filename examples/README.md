@@ -17,13 +17,16 @@ Available example groups:
 
 | Directory | Provider or purpose |
 | --- | --- |
+| `ameco/` | European Commission AMECO |
 | `bankitalia/` | Bank of Italy exchange rates |
 | `bdap/` | OpenBDAP public-finance catalogue |
+| `bis/` | Bank for International Settlements |
 | `ckan/` | Generic CKAN and national dati.gov.it catalogue |
 | `ecb/` | European Central Bank |
 | `eurostat/` | Eurostat |
 | `fred/` | FRED public CSV download |
 | `gateway/` | Unified source discovery and retrieval |
+| `imf/` | IMF DataMapper |
 | `inps/` | INPS catalogue and data retrieval |
 | `istat/` | ISTAT retrieval |
 | `oecd/` | OECD Data Explorer |
@@ -31,6 +34,7 @@ Available example groups:
 | `pnrr/` | OpenPNRR |
 | `sdmx/` | Shared SDMX-oriented examples |
 | `socrata/` | Generic Socrata and Regione Lombardia Open Data |
+| `un_population/` | UN Population Data Portal catalogue |
 | `world_bank/` | World Bank |
 
 For the public API and dataset discovery workflow, see

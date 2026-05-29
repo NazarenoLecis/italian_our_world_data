@@ -2,15 +2,25 @@
 
 from __future__ import annotations
 
-from typing import Callable
+import sys
+import time
+from pathlib import Path
+from typing import Callable, Optional
 
 import pandas as pd
 
-from . import (
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from italian_our_world_data import (
+    DataSourceError,
+    fetch_ameco_data,
     fetch_bankitalia_exchange_rates,
+    fetch_bis_data,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
+    fetch_imf_data,
     fetch_administrative_boundaries,
     fetch_italian_open_data_resource,
     fetch_istat_data,
@@ -21,7 +31,28 @@ from . import (
     fetch_world_bank_data,
     list_bdap_datasets,
     list_inps_datasets,
+    list_un_population_indicators,
 )
+
+
+def _retrieve_with_retries(
+    retrieve: Callable[[], pd.DataFrame],
+    *,
+    attempts: int = 3,
+    delay_seconds: float = 1.0,
+) -> pd.DataFrame:
+    """Retry transient provider failures during live verification."""
+    last_error: Optional[Exception] = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return retrieve()
+        except DataSourceError as exc:
+            last_error = exc
+            if attempt == attempts:
+                break
+            time.sleep(delay_seconds)
+    assert last_error is not None
+    raise last_error
 
 
 def _checks() -> list[tuple[str, Callable[[], pd.DataFrame]]]:
@@ -64,6 +95,27 @@ def _checks() -> list[tuple[str, Callable[[], pd.DataFrame]]]:
             ),
         ),
         (
+            "AMECO",
+            lambda: fetch_ameco_data("1.0.0.0.NPTD", countries="ITA", years=[2022, 2023]),
+        ),
+        (
+            "IMF DataMapper",
+            lambda: fetch_imf_data("NGDP_RPCH", countries="ITA", periods=[2022, 2023]),
+        ),
+        (
+            "UN Population catalogue",
+            lambda: list_un_population_indicators(page_size=2),
+        ),
+        (
+            "BIS",
+            lambda: fetch_bis_data(
+                "BIS,WS_EER,1.0",
+                "M.N.B.IT",
+                start_period="2023-01",
+                end_period="2023-03",
+            ),
+        ),
+        (
             "FRED (public CSV, no key)",
             lambda: fetch_fred_data("GDP", start_period="2023-01-01", end_period="2023-12-31"),
         ),
@@ -102,7 +154,7 @@ def main() -> int:
     print("Live provider verification")
     for name, retrieve in _checks():
         try:
-            frame = retrieve()
+            frame = _retrieve_with_retries(retrieve)
             if frame.empty:
                 raise RuntimeError("empty DataFrame returned")
             print(f"PASS  {name:<25} rows={len(frame):>5} columns={len(frame.columns):>2}")

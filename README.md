@@ -27,7 +27,7 @@ python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_d
 Install a tagged GitHub release for reproducible use:
 
 ```bash
-python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git@v2.0.0"
+python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git@v2.1.0"
 ```
 
 For contributors working from a clone:
@@ -73,7 +73,10 @@ The same discovery layer is available from the terminal:
 ```bash
 python3 -m italian_our_world_data sources
 python3 -m italian_our_world_data info eurostat
+python3 -m italian_our_world_data indicators ameco --format csv | grep NPTD
+python3 -m italian_our_world_data indicators imf -p dataset=WEO --format csv | grep NGDP_RPCH
 python3 -m italian_our_world_data indicators world_bank -p per_page=20000 --format csv | grep "GDP (current US$)"
+python3 -m italian_our_world_data fetch ameco -p full_variable=1.0.0.0.NPTD -p countries=ITA -p years='[2022, 2023]'
 python3 -m italian_our_world_data fetch world_bank -p indicator=NY.GDP.MKTP.CD -p country=ITA --head 5
 ```
 
@@ -82,9 +85,12 @@ source APIs:
 
 ```python
 from italian_our_world_data import (
+    fetch_ameco_data,
     fetch_bankitalia_exchange_rates,
+    fetch_bis_data,
     fetch_ecb_data,
     fetch_eurostat_data,
+    fetch_imf_data,
     fetch_istat_data,
     fetch_lombardy_data,
     fetch_opencoesione_data,
@@ -106,6 +112,12 @@ exchange_rate = fetch_ecb_data(
 
 world_bank_gdp = fetch_world_bank_data(
     "NY.GDP.MKTP.CD", country="ITA", start_year=2022, end_year=2023
+)
+
+ameco_population = fetch_ameco_data("1.0.0.0.NPTD", countries="ITA", years=[2022, 2023])
+imf_growth = fetch_imf_data("NGDP_RPCH", countries="ITA", periods=[2022, 2023])
+bis_exchange_rate_index = fetch_bis_data(
+    "BIS,WS_EER,1.0", "M.N.B.IT", start_period="2023-01", end_period="2023-03"
 )
 
 exchange_rates = fetch_bankitalia_exchange_rates(
@@ -160,7 +172,10 @@ returns catalogue information as a `DataFrame`; FRED supports
 
 ```python
 from italian_our_world_data import (
+    list_ameco_variables,
+    list_bis_dataflows,
     list_ecb_dataflows,
+    list_imf_indicators,
     list_inps_datasets,
     list_italian_open_data_datasets,
     list_world_bank_indicators,
@@ -169,6 +184,9 @@ from italian_our_world_data import (
 )
 
 print(list_ecb_dataflows().head())
+print(list_ameco_variables().head())
+print(list_imf_indicators(dataset="WEO").head())
+print(list_bis_dataflows().head())
 print(list_world_bank_indicators(per_page=10).head())
 print(list_inps_datasets(limit=10))
 print(list_pnrr_resources())
@@ -229,5 +247,5 @@ particular remote file remaining available.
 The repository includes a GitHub Actions release workflow for PyPI Trusted
 Publishing. The maintainer must configure a trusted publisher on PyPI once,
 then publish a GitHub release tagged with the matching version, for example
-`v2.0.0`. Detailed steps are in
+`v2.1.0`. Detailed steps are in
 [docs/RELEASING.md](docs/RELEASING.md).

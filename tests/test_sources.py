@@ -1,3 +1,4 @@
+import io
 import unittest
 import sys
 from pathlib import Path
@@ -11,12 +12,15 @@ import requests
 from italian_our_world_data import (
     DataSourceError,
     attach_administrative_boundaries,
+    fetch_ameco_data,
     fetch_bankitalia_exchange_rates,
     fetch_bdap_data,
+    fetch_bis_data,
     fetch_ckan_resource,
     fetch_ecb_data,
     fetch_eurostat_data,
     fetch_fred_data,
+    fetch_imf_data,
     fetch_inps_data,
     fetch_italian_open_data_resource,
     fetch_istat_data,
@@ -25,6 +29,7 @@ from italian_our_world_data import (
     fetch_opencoesione_data,
     fetch_pnrr_data,
     fetch_socrata_data,
+    fetch_un_population_data,
     fetch_world_bank_data,
     fetch_administrative_boundaries,
     fetch_administrative_boundary_metadata,
@@ -35,12 +40,16 @@ from italian_our_world_data import (
     get_italian_open_data_dataset_metadata,
     get_lombardy_dataset_metadata,
     get_socrata_dataset_metadata,
+    list_ameco_variables,
     list_administrative_boundary_divisions,
     list_bankitalia_currencies,
     list_bdap_datasets,
+    list_bis_dataflows,
     list_ckan_datasets,
     list_ecb_dataflows,
     list_eurostat_dataflows,
+    list_imf_countries,
+    list_imf_indicators,
     list_inps_datasets,
     list_italian_open_data_datasets,
     list_istat_dataflows,
@@ -49,6 +58,8 @@ from italian_our_world_data import (
     list_opencoesione_resources,
     list_pnrr_resources,
     list_socrata_datasets,
+    list_un_population_indicators,
+    list_un_population_locations,
     list_world_bank_indicators,
     search_fred_series,
 )
@@ -193,6 +204,36 @@ class SourceTests(unittest.TestCase):
         self.assertEqual(ecb.loc[0, "dataflow_id"], "EXR")
         self.assertEqual(estat.loc[0, "name"], "Rates")
 
+    def test_ameco_lists_variables_and_fetches_annual_series(self):
+        buffer = io.BytesIO()
+        variables = pd.DataFrame(
+            {
+                "Unnamed: 0": [1],
+                "CHAPTER": ["POPULATION AND EMPLOYMENT"],
+                "Unnamed: 2": [1.1],
+                "SUB-CHAPTER": ["POPULATION"],
+                "AMECO\nCODE": ["NPTD"],
+                "DESCRIPTION": ["Total population"],
+            }
+        )
+        with pd.ExcelWriter(buffer) as writer:
+            variables.to_excel(writer, index=False)
+        catalogue = list_ameco_variables(session=Session(Response(content=buffer.getvalue())))
+        self.assertEqual(catalogue.loc[0, "full_variable"], "1.0.0.0.NPTD")
+
+        html = """
+        <table>
+          <thead><tr><th>Country</th><th>Label</th><th>Unit</th><th>2022</th><th>2023</th></tr></thead>
+          <tbody><tr><td>Italy</td><td>Total population</td><td>1000 persons</td><td>59013.7</td><td>58984.2</td></tr></tbody>
+        </table>
+        """
+        session = Session(Response(text=html))
+        frame = fetch_ameco_data("1.0.0.0.NPTD", countries="ITA", years=[2022, 2023], session=session)
+        self.assertEqual(frame["time_period"].tolist(), ["2022", "2023"])
+        self.assertEqual(frame.loc[0, "value"], 59013.7)
+        self.assertEqual(session.calls[0][1]["fullVariable"], "1.0.0.0.NPTD")
+        self.assertEqual(session.calls[0][1]["years"], "2022,2023")
+
     def test_world_bank_reads_all_pages(self):
         item1 = {"country": {"id": "IT", "value": "Italy"}, "indicator": {"id": "X", "value": "X"}, "date": "2023", "value": 1}
         item2 = {"country": {"id": "IT", "value": "Italy"}, "indicator": {"id": "X", "value": "X"}, "date": "2022", "value": 2}
@@ -205,6 +246,114 @@ class SourceTests(unittest.TestCase):
         item = {"id": "NY.GDP", "name": "GDP", "unit": "USD", "source": {"value": "WDI"}}
         frame = list_world_bank_indicators(session=Session(Response(payload=[{}, [item]])))
         self.assertEqual(frame.loc[0, "indicator_id"], "NY.GDP")
+
+    def test_imf_catalogues_and_data_are_normalised(self):
+        indicators = {
+            "indicators": {
+                "NGDP_RPCH": {
+                    "label": "Real GDP growth",
+                    "description": "Growth",
+                    "source": "World Economic Outlook",
+                    "unit": "Annual percent change",
+                    "dataset": "WEO",
+                    "last-modified": "2026-04-08",
+                },
+                "PCPI": {"label": "Inflation", "dataset": "IFS"},
+            }
+        }
+        frame = list_imf_indicators(dataset="WEO", session=Session(Response(payload=indicators)))
+        self.assertEqual(frame.loc[0, "indicator_id"], "NGDP_RPCH")
+        self.assertEqual(frame.loc[0, "unit"], "Annual percent change")
+
+        countries = {"countries": {"ITA": {"label": "Italy", "iso2": "IT", "region": "Europe"}}}
+        country_frame = list_imf_countries(session=Session(Response(payload=countries)))
+        self.assertEqual(country_frame.loc[0, "country_id"], "ITA")
+
+        payload = {
+            "indicator": {"label": "Real GDP growth", "unit": "Percent", "dataset": "WEO"},
+            "values": {"NGDP_RPCH": {"ITA": {"2022": 4.7, "2023": 0.7}, "FRA": {"2022": 2.5}}},
+        }
+        session = Session(Response(payload=payload))
+        data = fetch_imf_data("NGDP_RPCH", countries="ITA", periods=[2022, 2023], session=session)
+        self.assertEqual(data["value"].tolist(), [4.7, 0.7])
+        self.assertEqual(data["country_id"].tolist(), ["ITA", "ITA"])
+        self.assertEqual(session.calls[0][1]["periods"], "2022,2023")
+
+    def test_un_population_catalogues_and_token_requirement(self):
+        indicator_payload = {
+            "pageNumber": 1,
+            "pages": 1,
+            "data": [{"id": 46, "name": "Total population", "shortName": "Pop", "sourceName": "WPP"}],
+        }
+        indicators = list_un_population_indicators(
+            page_size=1, session=Session(Response(payload=indicator_payload))
+        )
+        self.assertEqual(indicators.loc[0, "indicator_id"], 46)
+        self.assertEqual(indicators.loc[0, "short_name"], "Pop")
+
+        location_payload = {
+            "pageNumber": 1,
+            "pages": 1,
+            "data": [{"id": 380, "name": "Italy", "iso3": "ITA"}],
+        }
+        locations = list_un_population_locations(session=Session(Response(payload=location_payload)))
+        self.assertEqual(locations.loc[0, "location_id"], 380)
+
+        with self.assertRaises(ValueError):
+            fetch_un_population_data(46, session=Session())
+
+        data_payload = {
+            "data": [
+                {
+                    "location": {"id": 380, "name": "Italy"},
+                    "indicator": {"id": 46, "name": "Total population"},
+                    "timeLabel": "2023",
+                    "value": 58.99,
+                }
+            ]
+        }
+        session = Session(Response(payload=data_payload))
+        data = fetch_un_population_data(
+            46,
+            location_id=380,
+            start_year=2023,
+            end_year=2023,
+            auth_token="token",
+            session=session,
+        )
+        self.assertEqual(data.loc[0, "value"], 58.99)
+        self.assertIn("/indicators/46/locations/380/start/2023/end/2023", session.calls[0][0])
+        self.assertEqual(session.calls[0][2]["Authorization"], "Bearer token")
+
+    def test_bis_catalogue_and_data_are_normalised(self):
+        payload = {
+            "data": {
+                "dataflows": [
+                    {
+                        "agencyID": "BIS",
+                        "id": "WS_EER",
+                        "version": "1.0",
+                        "name": "Effective exchange rates",
+                    }
+                ]
+            }
+        }
+        catalogue = list_bis_dataflows(session=Session(Response(payload=payload)))
+        self.assertEqual(catalogue.loc[0, "dataflow_id"], "WS_EER")
+        self.assertEqual(catalogue.loc[0, "dataflow"], "BIS,WS_EER,1.0")
+
+        csv = "TIME_PERIOD,OBS_VALUE,FREQ,REF_AREA\n2023-01,101.45,M,IT\n"
+        session = Session(Response(text=csv))
+        frame = fetch_bis_data(
+            "BIS,WS_EER,1.0",
+            "M.N.B.IT",
+            start_period="2023-01",
+            end_period="2023-01",
+            session=session,
+        )
+        self.assertEqual(frame.loc[0, "value"], 101.45)
+        self.assertIn("/data/BIS,WS_EER,1.0/M.N.B.IT", session.calls[0][0])
+        self.assertEqual(session.calls[0][1]["format"], "csv")
 
     def test_fred_without_key_downloads_public_series_csv(self):
         session = Session(Response(text="observation_date,GDP\n2023-01-01,4.5\n"))

@@ -53,6 +53,9 @@ class GatewayTests(unittest.TestCase):
         frame = list_sources()
         self.assertIn("istat", frame["source"].tolist())
         self.assertIn("world_bank", frame["source"].tolist())
+        self.assertIn("ameco", frame["source"].tolist())
+        self.assertIn("imf", frame["source"].tolist())
+        self.assertIn("bis", frame["source"].tolist())
         self.assertIn("identifier_column", frame.columns)
         self.assertIn("fetch_data", source_info("istat")["example"])
 
@@ -65,6 +68,8 @@ class GatewayTests(unittest.TestCase):
         self.assertEqual(info["fetch_parameter"], "indicator")
         self.assertIn("indicator", info["required"])
         self.assertEqual(get_source_info("wb")["source"], "world_bank")
+        self.assertEqual(get_source_info("weo")["source"], "imf")
+        self.assertEqual(get_source_info("ecfin")["source"], "ameco")
 
     def test_source_items_explain_identifier_columns_without_source(self):
         frame = list_source_items()
