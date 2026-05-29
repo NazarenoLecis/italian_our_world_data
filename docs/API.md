@@ -24,6 +24,8 @@ OpenBDAP expose catalogue **datasets**; OpenPNRR and OpenCoesione expose API
 ```python
 from italian_our_world_data import (
     attach_administrative_boundaries,
+    discover_data,
+    fetch_data,
     fetch_bankitalia_exchange_rates,
     fetch_bdap_data,
     fetch_ckan_resource,
@@ -44,11 +46,15 @@ from italian_our_world_data import (
     get_bdap_dataset_metadata,
     get_ckan_dataset_metadata,
     get_ckan_resource_metadata,
+    get_source_info,
     get_inps_dataset_metadata,
     get_italian_open_data_dataset_metadata,
     get_lombardy_dataset_metadata,
     get_socrata_dataset_metadata,
     list_administrative_boundary_divisions,
+    list_indicators,
+    list_source_items,
+    list_sources,
     list_bankitalia_currencies,
     list_bdap_datasets,
     list_ckan_datasets,
@@ -64,6 +70,7 @@ from italian_our_world_data import (
     list_socrata_datasets,
     list_world_bank_indicators,
     search_fred_series,
+    source_info,
 )
 ```
 
@@ -71,6 +78,61 @@ Retrieval functions return a `DataFrame`. Observation-oriented responses use
 `time_period` for the period identifier and `value` for numeric observations.
 `time_period` is intentionally a string because sources publish annual,
 quarterly, monthly, and daily frequencies.
+
+## Unified Gateway
+
+The provider-specific functions remain available, but users can start with a
+single gateway:
+
+| Function | Purpose |
+| --- | --- |
+| `list_sources()` | Return a table of supported source IDs, categories, and fetch/discovery functions |
+| `source_info(source=None)` | Return all sources when no source is passed, or detailed help for one source |
+| `list_indicators(source=None, **params)` | Show identifier columns for all sources, or list usable identifiers for one source |
+| `list_source_items(source=None, **params)` | Neutral alias for `list_indicators()`; useful because some sources expose datasets, resources, or series |
+| `discover_data(source, **params)` | Run the source's catalogue/listing function |
+| `fetch_data(source, **params)` | Run the source's fetch function |
+
+```python
+from italian_our_world_data import fetch_data, list_indicators, list_sources, source_info
+
+print(list_sources()[["source", "item_name", "identifier_column", "fetch_parameter"]])
+print(source_info("world_bank")["example"])
+
+indicators = list_indicators("world_bank", per_page=20000)
+gdp_indicator = indicators.loc[
+    indicators["name"].eq("GDP (current US$)"),
+    "indicator_id",
+].iloc[0]
+
+gdp = fetch_data(
+    "world_bank",
+    indicator=gdp_indicator,
+    country="ITA",
+    start_year=2022,
+    end_year=2023,
+)
+```
+
+Source aliases are accepted for common variants such as `world-bank`,
+`worldbank`, `bank_of_italy`, `openpnrr`, and `boundaries`.
+
+The command-line interface exposes the same idea:
+
+```bash
+python3 -m italian_our_world_data sources
+python3 -m italian_our_world_data info bankitalia
+python3 -m italian_our_world_data indicators
+python3 -m italian_our_world_data indicators world_bank -p per_page=20000 --format csv | grep "GDP (current US$)"
+python3 -m italian_our_world_data discover pnrr -p params='{"page_size": 2}'
+python3 -m italian_our_world_data fetch world_bank -p indicator=NY.GDP.MKTP.CD -p country=ITA --head 5
+```
+
+After installation, the console script is equivalent:
+
+```bash
+italian-our-world-data sources
+```
 
 ## GeoDataFrame Support
 

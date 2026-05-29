@@ -23,6 +23,7 @@ Available example groups:
 | `ecb/` | European Central Bank |
 | `eurostat/` | Eurostat |
 | `fred/` | FRED public CSV download |
+| `gateway/` | Unified source discovery and retrieval |
 | `inps/` | INPS catalogue and data retrieval |
 | `istat/` | ISTAT retrieval |
 | `oecd/` | OECD Data Explorer |

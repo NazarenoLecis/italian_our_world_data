@@ -27,7 +27,7 @@ python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_d
 Install a tagged GitHub release for reproducible use:
 
 ```bash
-python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git@v0.1.0"
+python3 -m pip install "git+https://github.com/NazarenoLecis/italian_our_world_data.git@v2.0.0"
 ```
 
 For contributors working from a clone:
@@ -43,6 +43,42 @@ import italian_our_world_data
 ```
 
 ## Examples
+
+For a single standard entry point, use `list_indicators()` to discover the
+identifiers a source accepts, then pass one of them to `fetch_data()`:
+
+```python
+from italian_our_world_data import fetch_data, list_indicators, list_sources, source_info
+
+print(list_sources()[["source", "item_name", "identifier_column", "fetch_parameter"]])
+print(source_info("world_bank")["example"])
+
+indicators = list_indicators("world_bank", per_page=20000)
+gdp_indicator = indicators.loc[
+    indicators["name"].eq("GDP (current US$)"),
+    "indicator_id",
+].iloc[0]
+
+italian_gdp = fetch_data(
+    "world_bank",
+    indicator=gdp_indicator,
+    country="ITA",
+    start_year=2022,
+    end_year=2023,
+)
+```
+
+The same discovery layer is available from the terminal:
+
+```bash
+python3 -m italian_our_world_data sources
+python3 -m italian_our_world_data info eurostat
+python3 -m italian_our_world_data indicators world_bank -p per_page=20000 --format csv | grep "GDP (current US$)"
+python3 -m italian_our_world_data fetch world_bank -p indicator=NY.GDP.MKTP.CD -p country=ITA --head 5
+```
+
+The provider-specific functions remain available when you want explicit
+source APIs:
 
 ```python
 from italian_our_world_data import (
@@ -193,5 +229,5 @@ particular remote file remaining available.
 The repository includes a GitHub Actions release workflow for PyPI Trusted
 Publishing. The maintainer must configure a trusted publisher on PyPI once,
 then publish a GitHub release tagged with the matching version, for example
-`v0.1.0`. Detailed steps are in
+`v2.0.0`. Detailed steps are in
 [docs/RELEASING.md](docs/RELEASING.md).

@@ -7,6 +7,15 @@ from .geo import (
     fetch_administrative_boundary_metadata,
     list_administrative_boundary_divisions,
 )
+from .gateway import (
+    discover_data,
+    fetch_data,
+    get_source_info,
+    list_indicators,
+    list_source_items,
+    list_sources,
+    source_info,
+)
 from .sources import (
     fetch_bankitalia_exchange_rates,
     fetch_bdap_data,
@@ -50,6 +59,13 @@ from .sources import (
 
 __all__ = [
     "DataSourceError",
+    "discover_data",
+    "fetch_data",
+    "get_source_info",
+    "list_indicators",
+    "list_source_items",
+    "list_sources",
+    "source_info",
     "fetch_bankitalia_exchange_rates",
     "fetch_bdap_data",
     "fetch_ckan_resource",
@@ -94,4 +110,4 @@ __all__ = [
     "search_fred_series",
 ]
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"

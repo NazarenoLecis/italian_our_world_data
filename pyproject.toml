@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "italian-our-world-data"
-version = "0.1.0"
+version = "2.0.0"
 description = "Pandas access to Italian and international public data APIs."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -33,6 +33,9 @@ Homepage = "https://github.com/NazarenoLecis/italian_our_world_data"
 Documentation = "https://github.com/NazarenoLecis/italian_our_world_data/blob/main/docs/API.md"
 Repository = "https://github.com/NazarenoLecis/italian_our_world_data"
 Issues = "https://github.com/NazarenoLecis/italian_our_world_data/issues"
+
+[project.scripts]
+italian-our-world-data = "italian_our_world_data.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["italian_our_world_data*"]
